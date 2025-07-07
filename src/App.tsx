@@ -1,4 +1,4 @@
-import React from "react";
+import "./i18n";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
@@ -12,7 +12,6 @@ import ReviewHubPage from "./ReviewHubPage";
 
 /* ---------- MAIN PAGES ---------- */
 import HomePage from "./HomePage";
-import "./i18n";
 import NotificationsPage from "./NotificationsPage";
 import CoursesPage from "./CoursesPage";
 
@@ -20,6 +19,7 @@ import CoursesPage from "./CoursesPage";
 import StudentsPage from "./StudentsPage";
 import StudentProfilePage from "./StudentProfilePage";
 import StudentsInactivePage from "./StudentsInactivePage";
+
 
 /* ---------- OTHER SECTIONS ---------- */
 import AdmissionsPage from "./AdmissionsPage";
@@ -69,7 +69,8 @@ export default function App() {
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/review" element={<ReviewHubPage />} />
             <Route path="/myschool/courses" element={<CoursesPage />} />
-            <Route path="/myschool/StudentsInactivePage" element={<StudentsInactivePage />} />
+            <Route path="/myschool/students/inactive" element={<StudentsInactivePage />} />
+
 
             {/* Notifications */}
             <Route path="/notifications" element={<NotificationsPage />} />

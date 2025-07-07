@@ -1,7 +1,7 @@
-// src/AttendanceQRBox.tsx
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { Html5QrcodeScanner } from "html5-qrcode";
+import { useTranslation } from "react-i18next";
 
 interface Props {
   onScan: (decodedText: string) => void;
@@ -9,6 +9,7 @@ interface Props {
 }
 
 export default function AttendanceQRBox({ onScan, onClose }: Props) {
+  const { t } = useTranslation();
   const divId = useRef(`qr-reader-${Math.random().toString(36).substr(2, 9)}`);
   const scannerRef = useRef<Html5QrcodeScanner | null>(null);
   const [scanned, setScanned] = useState(false);
@@ -56,7 +57,6 @@ export default function AttendanceQRBox({ onScan, onClose }: Props) {
       ?.clear()
       .catch(() => {})
       .then(() => {
-        // re-render with same callbacks
         if (!scannerRef.current) return;
         scannerRef.current.render(
           (decoded: string) => {
@@ -93,7 +93,7 @@ export default function AttendanceQRBox({ onScan, onClose }: Props) {
       >
         {/* header */}
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-bold">Scan Student QR</h3>
+          <h3 className="text-lg font-bold">{t("scanStudentQr")}</h3>
           <button onClick={onClose} className="text-gray-500 hover:text-gray-800">
             ✕
           </button>
@@ -113,14 +113,14 @@ export default function AttendanceQRBox({ onScan, onClose }: Props) {
               onClick={restart}
               className="flex-1 px-4 py-2 bg-blue-100 hover:bg-blue-200 rounded-lg"
             >
-              Scan another
+              {t("scanAnother")}
             </button>
           )}
           <button
             onClick={onClose}
             className="flex-1 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg"
           >
-            Cancel
+            {t("cancel")}
           </button>
         </div>
       </motion.div>

@@ -1,9 +1,11 @@
-// src/LoginPage.tsx
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "./supabaseClient";
+import LanguageSwitcher from "./LanguageSwitcher";
+import { useTranslation } from "react-i18next";
 
 export default function LoginPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [pw, setPw] = useState("");
@@ -18,7 +20,7 @@ export default function LoginPage() {
     const emailClean = email.trim().toLowerCase();
     const pwClean = pw.trim();
 
-    const { data, error } = await supabase.auth.signInWithPassword({
+    const { error } = await supabase.auth.signInWithPassword({
       email: emailClean,
       password: pwClean,
     });
@@ -26,22 +28,24 @@ export default function LoginPage() {
     if (error) {
       setErr(error.message);
     } else {
-      // on successful sign in, AuthContext picks up session & profile
       navigate("/dashboard");
     }
-
     setLoading(false);
   }
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-50">
+    <div className="flex items-center justify-center min-h-screen bg-gray-50 relative">
+      {/* Language switcher outside the form */}
+      <div className="absolute top-6 right-6 z-10">
+        <LanguageSwitcher />
+      </div>
       <form
         onSubmit={handleLogin}
         className="w-full max-w-md bg-white p-8 rounded shadow"
       >
-        <h2 className="text-2xl font-bold mb-6 text-center">Sign In</h2>
+        <h2 className="text-2xl font-bold mb-6 text-center">{t("signIn")}</h2>
         <label className="block mb-4">
-          <span className="text-sm">Email</span>
+          <span className="text-sm">{t("email")}</span>
           <input
             type="email"
             className="mt-1 block w-full border rounded px-3 py-2"
@@ -53,7 +57,7 @@ export default function LoginPage() {
           />
         </label>
         <label className="block mb-6">
-          <span className="text-sm">Password</span>
+          <span className="text-sm">{t("password")}</span>
           <input
             type="password"
             className="mt-1 block w-full border rounded px-3 py-2"
@@ -66,9 +70,9 @@ export default function LoginPage() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 disabled:opacity-50"
+          className="w-full bg-[#6654b3] text-white py-2 rounded hover:bg-[#5542a0] disabled:opacity-50 transition"
         >
-          {loading ? "Signing In…" : "Sign In"}
+          {loading ? t("signingIn") : t("signIn")}
         </button>
         {err && <p className="mt-4 text-red-600 text-center">{err}</p>}
       </form>

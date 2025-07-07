@@ -1,24 +1,41 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Outlet, useNavigate, useLocation } from "react-router-dom";
+import { Outlet, useNavigate } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import { BellIcon } from "@heroicons/react/24/solid";
 import { supabase } from "./supabaseClient";
 import { useAuth } from "./AuthContext";
 
-const PURPLE = "#6654b3";
-const WHITE = "#f6f6f6";
 const SIDEBAR_WIDTH = 80;
+
 
 export default function Layout() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [profileUrl, setProfileUrl] = useState("");
+  const [profileUrl, setProfileUrl] = useState("/avatar.png");
   const nav = useNavigate();
-  const loc = useLocation();
   const { user } = useAuth();
-  const fileInput = useRef();
+  const fileInput = useRef<HTMLInputElement | null>(null);
 
+  // Fetch avatar_url from profiles table on mount/user change
+  useEffect(() => {
+    async function fetchAvatar() {
+      if (!user?.id) return setProfileUrl("/avatar.png");
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("avatar_url")
+        .eq("id", user.id)
+        .single();
+      if (error || !data?.avatar_url) {
+        setProfileUrl("/avatar.png");
+      } else {
+        setProfileUrl(data.avatar_url);
+      }
+    }
+    fetchAvatar();
+  }, [user]);
+
+  // Unread notification count
   useEffect(() => {
     const refresh = async () => {
       const { count } = await supabase
@@ -35,29 +52,39 @@ export default function Layout() {
     return () => { ch.unsubscribe(); };
   }, []);
 
-  useEffect(() => {
-    setProfileUrl(user?.photoURL || "/avatar.png");
-  }, [user]);
-
-  async function handleUpload(e) {
+  // Handle profile upload and save to profiles table
+  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || !user?.id) return;
     setUploading(true);
-    const path = `avatars/${user.id}-${Date.now()}.${file.name.split(".").pop()}`;
-    let { error } = await supabase.storage.from("avatars").upload(path, file, { upsert: true });
-    if (error) {
-      alert("Upload failed: " + error.message);
+    const ext = file.name.split(".").pop();
+    const path = `${user.id}-${Date.now()}.${ext}`;
+    const { error: uploadError } = await supabase.storage
+      .from("avatars")
+      .upload(path, file, { upsert: true });
+    if (uploadError) {
+      alert("Upload failed: " + uploadError.message);
       setUploading(false);
       return;
     }
-    const { data } = supabase.storage.from("avatars").getPublicUrl(path);
-    setProfileUrl(data.publicUrl);
+    // Get public URL
+    const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(path);
+    const avatar_url = urlData.publicUrl;
+
+    // Update profile in db
+    const { error: dbError } = await supabase
+      .from("profiles")
+      .update({ avatar_url })
+      .eq("id", user.id);
+    if (dbError) {
+      alert("Failed to update profile: " + dbError.message);
+      setUploading(false);
+      return;
+    }
+    setProfileUrl(avatar_url);
     setShowProfileModal(false);
     setUploading(false);
   }
-
-  // Only show slogan on homepage
-  const isHome = loc.pathname === "/dashboard";
 
   return (
     <div className="min-h-screen bg-[#f6f6f6] flex">
@@ -73,7 +100,7 @@ export default function Layout() {
         <header
           className="w-full flex items-center px-8 py-3 shadow-sm"
           style={{
-            background: WHITE,
+            background: "#f6f6f6",
             borderBottom: "1.5px solid #edeaf8",
             minHeight: "64px",
             zIndex: 10,
@@ -106,15 +133,14 @@ export default function Layout() {
               aria-label="Change profile"
             >
               <img
-                src={profileUrl}
-                alt="Profile"
-                className="w-10 h-10 rounded-full border-2 border-[#c5bdf4] shadow object-cover hover:scale-105 transition"
+              src={profileUrl || "/avatar.png"}
+              alt="Profile"
+              className="w-10 h-10 rounded-full border-2 border-[#c5bdf4] shadow object-cover hover:scale-105 transition"
               />
             </button>
           </div>
         </header>
-        {/* Slogan only on homepage */}
-        
+
         {/* Profile Modal */}
         {showProfileModal && (
           <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
@@ -125,7 +151,7 @@ export default function Layout() {
                 className="w-20 h-20 rounded-full mb-4 border-2 border-[#c5bdf4] shadow object-cover"
               />
               <input
-                ref={fileInput}
+                ref={fileInput as React.RefObject<HTMLInputElement>}
                 type="file"
                 accept="image/*"
                 className="mb-4"

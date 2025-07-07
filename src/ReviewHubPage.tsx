@@ -1,36 +1,34 @@
-import React, { useEffect, useState, useMemo } from "react";
+import { useState, useMemo } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "./supabaseClient";
 import {
-  XMarkIcon,
-  CheckIcon,
-  XCircleIcon,
-  DocumentArrowDownIcon,
-  PrinterIcon,
-  UserCircleIcon,
-  ChevronDownIcon,
-  ChevronRightIcon,
+  XMarkIcon, CheckIcon, XCircleIcon,
+  DocumentArrowDownIcon, PrinterIcon, UserCircleIcon,
+  ChevronDownIcon, ChevronRightIcon,
 } from "@heroicons/react/24/outline";
 import { Dialog } from "@headlessui/react";
 import clsx from "clsx";
+import { useTranslation } from "react-i18next";
 
 // Soft purple & white
 const SOFT_PURPLE = "#6654b3";
 const SOFT_WHITE = "#f6f6f6";
 
 const groupMeta = {
-  new_application: { label: "New Applications", color: SOFT_PURPLE, text: "#fff" },
-  renewal:         { label: "Renewals",         color: "#e6e1f7",   text: SOFT_PURPLE },
-  edit:            { label: "Course Changes",   color: "#edeaf7",   text: SOFT_PURPLE }
+  new_application: { labelKey: "newApplications", color: SOFT_PURPLE, text: "#fff" },
+  renewal:         { labelKey: "renewals",         color: "#e6e1f7",   text: SOFT_PURPLE },
+  edit:            { labelKey: "courseChanges",    color: "#edeaf7",   text: SOFT_PURPLE }
 };
 
 function ReceiptsPanel({ urls, open, onClose }: { urls: string[], open: boolean, onClose: () => void }) {
+  const { t } = useTranslation();
   return (
     <Dialog open={open} onClose={onClose} className="fixed z-50 inset-0 flex items-center justify-center bg-black/30">
       <Dialog.Panel className="bg-white rounded-2xl p-6 max-w-lg w-full relative">
-        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-[${SOFT_PURPLE}]">
+        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-[#6654b3]">
           <XMarkIcon className="w-6 h-6" />
         </button>
-        <h2 className="text-lg font-bold mb-2" style={{ color: SOFT_PURPLE }}>Receipts</h2>
+        <h2 className="text-lg font-bold mb-2" style={{ color: SOFT_PURPLE }}>{t("receipts")}</h2>
         <div className="space-y-3">
           {urls.map((u) => (
             <div key={u} className="rounded-lg border border-[#e1def5] bg-[#f6f6f6] px-3 py-2 flex items-center gap-3">
@@ -39,7 +37,7 @@ function ReceiptsPanel({ urls, open, onClose }: { urls: string[], open: boolean,
                 className="hover:underline text-xs font-bold"
                 style={{ color: SOFT_PURPLE }}
                 onClick={() => window.open(u, "_blank")}
-              >Open</button>
+              >{t("open")}</button>
               <button
                 className="hover:underline text-xs font-bold flex items-center gap-1"
                 style={{ color: SOFT_PURPLE }}
@@ -48,7 +46,7 @@ function ReceiptsPanel({ urls, open, onClose }: { urls: string[], open: boolean,
                   const a = document.createElement("a");
                   a.href = URL.createObjectURL(blob); a.download = u.split("/").slice(-1)[0]; a.click();
                 }}
-              ><DocumentArrowDownIcon className="w-4 h-4 inline" /> Download</button>
+              ><DocumentArrowDownIcon className="w-4 h-4 inline" /> {t("download")}</button>
               <button
                 className="hover:underline text-xs font-bold flex items-center gap-1"
                 style={{ color: SOFT_PURPLE }}
@@ -58,7 +56,7 @@ function ReceiptsPanel({ urls, open, onClose }: { urls: string[], open: boolean,
                   iframe.style.width = "0"; iframe.style.height = "0"; iframe.src = u; document.body.appendChild(iframe);
                   iframe.onload = () => { iframe.contentWindow?.print(); setTimeout(() => document.body.removeChild(iframe), 1000); };
                 }}
-              ><PrinterIcon className="w-4 h-4 inline" /> Print</button>
+              ><PrinterIcon className="w-4 h-4 inline" /> {t("print")}</button>
             </div>
           ))}
         </div>
@@ -76,46 +74,62 @@ function groupBy<T>(arr: T[], keyFn: (item: T) => string): Record<string, T[]> {
 }
 
 export default function ReviewHubPage() {
-  const [loading, setLoading] = useState(true);
-  const [items, setItems]     = useState<any[]>([]);
-  const [courses, setCourses] = useState<any[]>([]);
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
   const [receipts, setReceipts] = useState<string[] | null>(null);
   const [selected, setSelected] = useState<Record<string, Set<string>>>({});
   const [expanded, setExpanded] = useState<Record<string, boolean>>({
     new_application: false, renewal: false, edit: false
   });
-  const [submitters, setSubmitters] = useState<Record<string, any>>({});
 
-  const courseMap = useMemo(() =>
-    Object.fromEntries(courses.map(c => [c.id, c.name])), [courses]
-  );
+  // Fetch courses
+  const { data: courses = [] } = useQuery({
+    queryKey: ["courses", "names"],
+    queryFn: async () => {
+      const { data } = await supabase.from("courses").select("id,name");
+      return data || [];
+    },
+    staleTime: 5 * 60 * 1000
+  });
 
-  useEffect(() => {
-    setLoading(true);
-    Promise.all([
-      supabase.from("courses").select("id,name"),
-      supabase.from("applications").select("*").eq("status", "pending").order("created_at", { ascending: true }),
-      supabase.from("application_changes").select("*").eq("status", "pending").order("created_at", { ascending: true }),
-    ]).then(async ([crs, apps, changes]) => {
-      setCourses(crs.data || []);
-      const rows = [
+  // Fetch applications & changes
+  const { data: allItems = [], isLoading } = useQuery({
+    queryKey: ["reviewHub", "pending"],
+    queryFn: async () => {
+      const [apps, changes] = await Promise.all([
+        supabase.from("applications").select("*").eq("status", "pending").order("created_at", { ascending: true }),
+        supabase.from("application_changes").select("*").eq("status", "pending").order("created_at", { ascending: true }),
+      ]);
+      return [
         ...(apps.data || []).map(a => ({ ...a, group: "new_application" })),
         ...(changes.data || []).map(a => ({ ...a, group: a.type }))
       ];
-      // Fetch submitters
-      const ids = Array.from(new Set(rows.map(r => r.submitted_by).filter(Boolean)));
-      const subMap: Record<string, any> = {};
-      await Promise.all(ids.map(async id => {
-        const { data } = await supabase.from("profiles").select("full_name,email").eq("id", id).single();
-        if (data) subMap[id] = data;
-      }));
-      setSubmitters(subMap);
-      setItems(rows);
-      setLoading(false);
-    });
-  }, []);
+    },
+    staleTime: 20 * 1000,
+  });
 
-  const groups = useMemo(() => groupBy(items, r => r.group), [items]);
+  // Fetch submitters
+  const submitterIds = useMemo(
+    () => Array.from(new Set((allItems || []).map(r => r.submitted_by).filter(Boolean))),
+    [allItems]
+  );
+  const { data: submitters = {} } = useQuery({
+    queryKey: ["submitters", ...submitterIds],
+    queryFn: async () => {
+      const map: Record<string, any> = {};
+      await Promise.all(
+        submitterIds.map(async id => {
+          const { data } = await supabase.from("profiles").select("full_name,email").eq("id", id).single();
+          if (data) map[id] = data;
+        })
+      );
+      return map;
+    },
+    enabled: submitterIds.length > 0
+  });
+
+  const courseMap = useMemo(() => Object.fromEntries(courses.map(c => [c.id, c.name])), [courses]);
+  const groups = useMemo(() => groupBy(allItems, r => r.group), [allItems]);
 
   function toggleSelect(group: string, id: string) {
     setSelected(s => ({
@@ -134,7 +148,7 @@ export default function ReviewHubPage() {
   async function handleApprove(group: string) {
     const ids = Array.from(selected[group] || []);
     if (!ids.length) return;
-    if (!window.confirm(`Approve ${ids.length} item(s)?`)) return;
+    if (!window.confirm(t("approveConfirm", { count: ids.length }))) return;
     let update;
     if (group === "new_application") {
       update = supabase.from("applications").update({ status: "approved" }).in("id", ids);
@@ -142,29 +156,30 @@ export default function ReviewHubPage() {
       update = supabase.from("application_changes").update({ status: "approved", reviewed_at: new Date().toISOString() }).in("id", ids);
     }
     await update;
-    setItems(i => i.filter(x => !ids.includes(x.id)));
+    queryClient.invalidateQueries({ queryKey: ["reviewHub", "pending"] });
     setSelected(s => ({ ...s, [group]: new Set() }));
   }
   async function handleReject(group: string) {
     const ids = Array.from(selected[group] || []);
     if (!ids.length) return;
-    if (!window.confirm(`Reject (delete) ${ids.length} item(s)?`)) return;
+    if (!window.confirm(t("rejectConfirm", { count: ids.length }))) return;
     if (group === "new_application") {
       await supabase.from("applications").delete().in("id", ids);
     } else {
       await supabase.from("application_changes").delete().in("id", ids);
     }
-    setItems(i => i.filter(x => !ids.includes(x.id)));
+    queryClient.invalidateQueries({ queryKey: ["reviewHub", "pending"] });
     setSelected(s => ({ ...s, [group]: new Set() }));
   }
 
-  if (loading) return (
-    <div className="p-10 flex items-center justify-center" style={{ background: SOFT_WHITE, minHeight: "100vh" }}>
-      <span className="animate-bounce w-5 h-5 rounded-full" style={{ background: SOFT_PURPLE, marginRight: 8 }} />
-      <span className="animate-bounce w-5 h-5 rounded-full" style={{ background: "#e6e1f7", marginRight: 8 }} />
-      <span className="animate-bounce w-5 h-5 rounded-full" style={{ background: "#edeaf7" }} />
-    </div>
-  );
+  if (isLoading)
+    return (
+      <div className="p-10 flex items-center justify-center" style={{ background: SOFT_WHITE, minHeight: "100vh" }}>
+        <span className="animate-bounce w-5 h-5 rounded-full" style={{ background: SOFT_PURPLE, marginRight: 8 }} />
+        <span className="animate-bounce w-5 h-5 rounded-full" style={{ background: "#e6e1f7", marginRight: 8 }} />
+        <span className="animate-bounce w-5 h-5 rounded-full" style={{ background: "#edeaf7" }} />
+      </div>
+    );
 
   return (
     <div
@@ -193,7 +208,7 @@ export default function ReviewHubPage() {
             >
               <div className="flex items-center gap-2">
                 {expanded[group] ? <ChevronDownIcon className="w-6 h-6" /> : <ChevronRightIcon className="w-6 h-6" />}
-                {meta.label}
+                {t(meta.labelKey)}
                 <span
                   className="ml-2 rounded-full px-3 py-1 text-base font-bold border"
                   style={{
@@ -218,7 +233,8 @@ export default function ReviewHubPage() {
                     }}
                     onClick={() => toggleSelectAll(group)}
                   >
-                    {selected[group]?.size === (groups[group]?.length || 0) ? "Unselect All" : "Select All"}
+                    {selected[group]?.size === (groups[group]?.length || 0)
+                      ? t("unselectAll") : t("selectAll")}
                   </button>
                   <button
                     className="px-3 py-1 rounded-full font-bold text-xs transition"
@@ -229,7 +245,7 @@ export default function ReviewHubPage() {
                     }}
                     disabled={!(selected[group]?.size)}
                     onClick={() => handleApprove(group)}
-                  ><CheckIcon className="w-4 h-4 inline" /> Approve</button>
+                  ><CheckIcon className="w-4 h-4 inline" /> {t("approve")}</button>
                   <button
                     className="px-3 py-1 rounded-full font-bold text-xs transition"
                     style={{
@@ -239,7 +255,7 @@ export default function ReviewHubPage() {
                     }}
                     disabled={!(selected[group]?.size)}
                     onClick={() => handleReject(group)}
-                  ><XCircleIcon className="w-4 h-4 inline" /> Reject</button>
+                  ><XCircleIcon className="w-4 h-4 inline" /> {t("reject")}</button>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {(groups[group] || []).map(row => {
@@ -276,7 +292,8 @@ export default function ReviewHubPage() {
                           borderColor: "#edeaf7",
                           background: "#fff",
                           boxShadow: "0 2px 8px 0 rgba(102,84,179,0.03)",
-                          ...(selected[group]?.has(row.id) ? { boxShadow: `0 0 0 3px ${SOFT_PURPLE}40` } : {})
+                          ...(selected[group]?.has(row.id) ? { boxShadow: `0 0 0 3px ${SOFT_PURPLE}40` } : {}
+                          )
                         }}
                       >
                         <label className="absolute top-3 left-3">
@@ -294,24 +311,24 @@ export default function ReviewHubPage() {
                                 {nickname ? `"${nickname}"` : ""} {first} {last}
                               </div>
                               <div className="text-xs text-gray-500">
-                                <span>Submitted by: </span>
+                                <span>{t("submittedBy")}: </span>
                                 <span>{submitter}</span>
                               </div>
                               <div className="text-xs text-gray-500">
-                                {row.parent_phone && <>Phone: {row.parent_phone} </>}
-                                {row.parent_line_id && <>LineID: {row.parent_line_id} </>}
-                                {row.dob && <>DOB: {new Date(row.dob).toLocaleDateString("en-GB")}</>}
+                                {row.parent_phone && <>{t("phone")}: {row.parent_phone} </>}
+                                {row.parent_line_id && <>{t("lineId")}: {row.parent_line_id} </>}
+                                {row.dob && <>{t("dob")}: {new Date(row.dob).toLocaleDateString("en-GB")}</>}
                               </div>
                             </div>
                           </div>
                           <div className="text-xs text-gray-600">
-                            Submitted at: {new Date(row.created_at).toLocaleString("en-GB")}
+                            {t("submittedAt")}: {new Date(row.created_at).toLocaleString("en-GB")}
                           </div>
                           <div className="my-2">
                             {courseRows.map((cr) => (
                               <div key={cr.cid} className="mb-1">
                                 <div className="font-semibold" style={{ color: SOFT_PURPLE }}>
-                                  Course: {courseMap[cr.cid] || cr.cid}
+                                  {t("course")}: {courseMap[cr.cid] || cr.cid}
                                 </div>
                                 {cr.days && Object.entries(cr.days).map(([day, times]: any) =>
                                   <div key={day} className="ml-2 text-sm">
@@ -320,13 +337,13 @@ export default function ReviewHubPage() {
                                   </div>
                                 )}
                                 <div className="ml-2 text-sm">
-                                  <span className="font-semibold">Hours:</span> {cr.hours}
+                                  <span className="font-semibold">{t("hours")}:</span> {cr.hours}
                                 </div>
                               </div>
                             ))}
                           </div>
                           {receipts && receipts.length > 0 && <div className="mb-2" />}
-                          {receipts.length > 0 && (
+                          {receipts && receipts.length > 0 && (
                             <button
                               className="rounded-full px-3 py-1 text-xs font-bold"
                               style={{
@@ -334,7 +351,7 @@ export default function ReviewHubPage() {
                                 color: SOFT_PURPLE
                               }}
                               onClick={() => setReceipts(receipts)}
-                            >View Receipts ({receipts.length})</button>
+                            >{t("viewReceipts", { count: receipts.length })}</button>
                           )}
                         </div>
                       </div>

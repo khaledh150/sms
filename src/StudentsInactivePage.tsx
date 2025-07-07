@@ -1,13 +1,14 @@
-import React, { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "./supabaseClient";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "./AuthContext";
 import {
   ArrowDownTrayIcon,
   PrinterIcon,
   XMarkIcon,
 } from "@heroicons/react/24/outline";
+import { useTranslation } from "react-i18next";
 
 const SOFT_PURPLE = "#6654b3";
 const SOFT_WHITE = "#f6f6f6";
@@ -30,28 +31,33 @@ type Course = {
   times: Record<string, string[]>;
 };
 
-function fetchInactiveStudents() {
-  return supabase
+// --- DATA FETCH ---
+async function fetchInactiveStudents() {
+  return await supabase
     .from("students")
-    .select(
-      "id,first_name,last_name,nick_name,parent_phone,parent_line_id,joined_at,status"
-    )
+    .select("id,first_name,last_name,nick_name,parent_phone,parent_line_id,joined_at,status")
     .not("status", "in", '("active","ongoing")')
     .order("joined_at", { ascending: false });
 }
-
-function fetchCourses() {
-  return supabase
+async function fetchCourses() {
+  return await supabase
     .from("courses")
     .select("id,name,weekdays,times")
     .order("name");
 }
 
-function RenewModal({ open, onClose, student, onSubmitted }) {
+// --- RENEW MODAL ---
+type RenewModalProps = {
+  open: boolean;
+  onClose: () => void;
+  student: Student;
+  onSubmitted: () => void;
+};
+function RenewModal({ open, onClose, student, onSubmitted }: RenewModalProps) {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
 
-  // State for the form
   const [courseId, setCourseId] = useState("");
   const [day, setDay] = useState("");
   const [time, setTime] = useState("");
@@ -61,8 +67,6 @@ function RenewModal({ open, onClose, student, onSubmitted }) {
   const [saving, setSaving] = useState(false);
 
   const queryClient = useQueryClient();
-
-  // Fetch courses
   const { data: coursesData } = useQuery({
     queryKey: ["courses", "renewal"],
     queryFn: fetchCourses,
@@ -71,34 +75,40 @@ function RenewModal({ open, onClose, student, onSubmitted }) {
   const courses: Course[] = coursesData?.data || [];
   const selectedCourse = courses.find(c => c.id === courseId);
 
-  async function handleSubmit(e) {
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError("");
     setSaving(true);
 
-    // Validate
+    // Validation
     if (!courseId || !day || !time || !hours || !receiptFile) {
-      setError("All fields are required.");
+      setError(t("allFieldsRequired"));
       setSaving(false);
       return;
     }
-    // Upload receipt to supabase storage
-    const fn = `${Date.now()}-${Math.random().toString(36).slice(2)}.${receiptFile.name.split(".").pop()}`;
+    // Upload receipt
+    const ext = receiptFile.name.split(".").pop() || "file";
+    const fn = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
     const { data: uploadData, error: uploadError } = await supabase.storage.from("receipts").upload(fn, receiptFile, { cacheControl: "3600" });
-    if (uploadError) {
-      setError(uploadError.message);
+    if (uploadError || !uploadData) {
+      setError(uploadError?.message || t("uploadError"));
       setSaving(false);
       return;
     }
     const { data: urlData } = supabase.storage.from("receipts").getPublicUrl(uploadData.path);
-    const receiptUrl = urlData.publicUrl;
+    const receiptUrl = urlData?.publicUrl || "";
+
+    if (!receiptUrl) {
+      setError(t("uploadError"));
+      setSaving(false);
+      return;
+    }
 
     if (isAdmin) {
-      // Immediate renewal (update student record)
+      // Direct update (admin only)
       const { error: updateErr } = await supabase
         .from("students")
         .update({
-          // Append or set course/slot/hours purchased; adjust per your schema
           course_limits: { [courseId]: Number(hours) },
           receipts: { [courseId]: [receiptUrl] },
           status: "active",
@@ -110,7 +120,7 @@ function RenewModal({ open, onClose, student, onSubmitted }) {
         return;
       }
     } else {
-      // Submit as application for admin to review
+      // User: submit for review
       const { error: insErr } = await supabase.from("applications").insert([{
         student_id: student.id,
         courses: { [courseId]: { [day]: [time] } },
@@ -127,13 +137,12 @@ function RenewModal({ open, onClose, student, onSubmitted }) {
       }
     }
     setSaving(false);
-    queryClient.invalidateQueries(["students", "inactive"]);
-    onSubmitted();
+    queryClient.invalidateQueries({ queryKey: ["students", "inactive"] });
+    onSubmitted && onSubmitted();
     onClose();
   }
 
-  if (!open) return null;
-
+  if (!open || !student) return null;
   return (
     <div className="fixed z-50 inset-0 bg-black/40 flex items-center justify-center">
       <form
@@ -148,13 +157,13 @@ function RenewModal({ open, onClose, student, onSubmitted }) {
           <XMarkIcon className="w-6 h-6" />
         </button>
         <h2 className="text-xl font-bold mb-3" style={{ color: SOFT_PURPLE }}>
-          Renew Enrollment
+          {t("renewEnrollment")}
         </h2>
         <div className="mb-3 text-sm">
-          Student: <span className="font-bold">{student.nick_name || student.first_name}</span>
+          {t("student")}: <span className="font-bold">{student.nick_name || student.first_name}</span>
         </div>
         <label className="block mb-2">
-          Course
+          {t("course")}
           <select
             className="border rounded px-2 py-1 w-full mt-1"
             value={courseId}
@@ -165,7 +174,7 @@ function RenewModal({ open, onClose, student, onSubmitted }) {
             }}
             required
           >
-            <option value="">Select course</option>
+            <option value="">{t("selectCourse")}</option>
             {courses.map(c => (
               <option value={c.id} key={c.id}>{c.name}</option>
             ))}
@@ -174,7 +183,7 @@ function RenewModal({ open, onClose, student, onSubmitted }) {
         {selectedCourse && (
           <>
             <label className="block mb-2">
-              Day
+              {t("day")}
               <select
                 className="border rounded px-2 py-1 w-full mt-1"
                 value={day}
@@ -184,7 +193,7 @@ function RenewModal({ open, onClose, student, onSubmitted }) {
                 }}
                 required
               >
-                <option value="">Select day</option>
+                <option value="">{t("selectDay")}</option>
                 {selectedCourse.weekdays.map(d => (
                   <option value={d} key={d}>{d}</option>
                 ))}
@@ -192,16 +201,16 @@ function RenewModal({ open, onClose, student, onSubmitted }) {
             </label>
             {day && (
               <label className="block mb-2">
-                Time slot
+                {t("timeSlot")}
                 <select
                   className="border rounded px-2 py-1 w-full mt-1"
                   value={time}
                   onChange={e => setTime(e.target.value)}
                   required
                 >
-                  <option value="">Select time</option>
-                  {(selectedCourse.times[day] || []).map(t => (
-                    <option value={t} key={t}>{t}</option>
+                  <option value="">{t("selectTime")}</option>
+                  {(selectedCourse.times[day] || []).map(ti => (
+                    <option value={ti} key={ti}>{ti}</option>
                   ))}
                 </select>
               </label>
@@ -209,7 +218,7 @@ function RenewModal({ open, onClose, student, onSubmitted }) {
           </>
         )}
         <label className="block mb-2">
-          Hours purchased
+          {t("hoursPurchased")}
           <input
             type="number"
             min={1}
@@ -220,7 +229,7 @@ function RenewModal({ open, onClose, student, onSubmitted }) {
           />
         </label>
         <label className="block mb-2">
-          Upload receipt
+          {t("uploadReceipt")}
           <input
             type="file"
             accept="image/*,application/pdf"
@@ -235,19 +244,21 @@ function RenewModal({ open, onClose, student, onSubmitted }) {
           disabled={saving}
           className="bg-[#6654b3] hover:bg-[#4b3f8c] text-white font-bold px-6 py-2 rounded-xl mt-2 w-full"
         >
-          {saving ? "Submitting…" : isAdmin ? "Renew Now" : "Submit Renewal Request"}
+          {saving ? t("submitting") : isAdmin ? t("renewNow") : t("submitRenewalRequest")}
         </button>
       </form>
     </div>
   );
 }
 
+// --- MAIN PAGE ---
 export default function StudentsInactivePage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
   const [exportOpen, setExportOpen] = useState(false);
-  const [renewingStudent, setRenewingStudent] = useState(null);
+  const [renewingStudent, setRenewingStudent] = useState<Student | null>(null);
 
   // React Query: Fetch inactive students
   const {
@@ -291,7 +302,7 @@ export default function StudentsInactivePage() {
             className="text-2xl sm:text-3xl font-extrabold tracking-tight"
             style={{ color: SOFT_PURPLE }}
           >
-            Students (Inactive)
+            {t("inactiveStudents")}
           </h1>
           <span
             className="ml-2 px-3 py-1 rounded-full text-lg font-semibold"
@@ -307,7 +318,7 @@ export default function StudentsInactivePage() {
         <div className="flex gap-2 mt-3 sm:mt-0">
           <input
             type="text"
-            placeholder="Search students…"
+            placeholder={t("searchStudents")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="rounded-2xl border border-[#e1def5] px-4 py-2 bg-white shadow focus:outline-none focus:ring-2 focus:ring-[#6654b3] transition w-56"
@@ -323,7 +334,7 @@ export default function StudentsInactivePage() {
               boxShadow: "0 2px 8px 0 rgba(102,84,179,0.02)"
             }}
           >
-            <ArrowDownTrayIcon className="w-5 h-5" /> Export
+            <ArrowDownTrayIcon className="w-5 h-5" /> {t("export")}
           </button>
         </div>
       </div>
@@ -331,7 +342,7 @@ export default function StudentsInactivePage() {
       {/* Table */}
       <div className="w-full max-w-6xl mx-auto overflow-x-auto">
         {loading ? (
-          <div className="text-center text-[#a7a3c0] py-10">Loading…</div>
+          <div className="text-center text-[#a7a3c0] py-10">{t("loading")}</div>
         ) : error ? (
           <div className="text-red-500 py-10 text-center">{error.message || error.toString()}</div>
         ) : (
@@ -353,19 +364,19 @@ export default function StudentsInactivePage() {
               <tr>
                 <th className="px-2 py-3 rounded-l-2xl"></th>
                 <th className="px-2 py-3 text-left font-semibold" style={{ color: SOFT_PURPLE }}>#</th>
-                <th className="px-2 py-3 text-left font-semibold" style={{ color: SOFT_PURPLE }}>Nick name</th>
-                <th className="px-2 py-3 text-left font-semibold" style={{ color: SOFT_PURPLE }}>First name</th>
-                <th className="px-2 py-3 text-left font-semibold" style={{ color: SOFT_PURPLE }}>Last name</th>
-                <th className="px-2 py-3 text-left font-semibold" style={{ color: SOFT_PURPLE }}>Parent Phone</th>
-                <th className="px-2 py-3 text-left font-semibold" style={{ color: SOFT_PURPLE }}>Line ID</th>
-                <th className="px-2 py-3 text-left font-semibold" style={{ color: SOFT_PURPLE }}>Action</th>
+                <th className="px-2 py-3 text-left font-semibold" style={{ color: SOFT_PURPLE }}>{t("nickName")}</th>
+                <th className="px-2 py-3 text-left font-semibold" style={{ color: SOFT_PURPLE }}>{t("firstName")}</th>
+                <th className="px-2 py-3 text-left font-semibold" style={{ color: SOFT_PURPLE }}>{t("lastName")}</th>
+                <th className="px-2 py-3 text-left font-semibold" style={{ color: SOFT_PURPLE }}>{t("parentPhone")}</th>
+                <th className="px-2 py-3 text-left font-semibold" style={{ color: SOFT_PURPLE }}>{t("lineID")}</th>
+                <th className="px-2 py-3 text-left font-semibold" style={{ color: SOFT_PURPLE }}>{t("action")}</th>
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="text-center text-[#b0b0b0] py-8">
-                    No students found.
+                    {t("noStudentsFound")}
                   </td>
                 </tr>
               ) : (
@@ -425,7 +436,7 @@ export default function StudentsInactivePage() {
                         onClick={() => setRenewingStudent(s)}
                         className="bg-[#6654b3] hover:bg-[#3a38a0] text-white font-bold px-5 py-2 rounded-full transition"
                       >
-                        Renew
+                        {t("renew")}
                       </button>
                     </td>
                   </tr>
@@ -450,7 +461,7 @@ export default function StudentsInactivePage() {
               <XMarkIcon className="w-6 h-6" />
             </button>
             <h2 className="text-lg font-bold mb-3" style={{ color: "#ec4899" }}>
-              Export Students ({selectedRows.size})
+              {t("exportStudents", { count: selectedRows.size })}
             </h2>
             <div className="flex gap-2 justify-between">
               <button
@@ -459,11 +470,11 @@ export default function StudentsInactivePage() {
                   const selected = students.filter((s) => selectedRows.has(s.id));
                   const header = [
                     "No.",
-                    "Nick name",
-                    "First name",
-                    "Last name",
-                    "Parent phone",
-                    "Line ID",
+                    t("nickName"),
+                    t("firstName"),
+                    t("lastName"),
+                    t("parentPhone"),
+                    t("lineID"),
                   ];
                   const rows = selected.map((s, i) => [
                     i + 1,
@@ -490,7 +501,7 @@ export default function StudentsInactivePage() {
                   color: "#fff",
                 }}
               >
-                <ArrowDownTrayIcon className="w-5 h-5" /> Export CSV
+                <ArrowDownTrayIcon className="w-5 h-5" /> {t("exportCSV")}
               </button>
               <button
                 onClick={() => {
@@ -503,7 +514,7 @@ export default function StudentsInactivePage() {
                   color: "#fff",
                 }}
               >
-                <PrinterIcon className="w-5 h-5" /> Print
+                <PrinterIcon className="w-5 h-5" /> {t("print")}
               </button>
             </div>
           </div>

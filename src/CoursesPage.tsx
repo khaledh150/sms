@@ -1,19 +1,43 @@
-import React, { useState } from "react";
+import { useState } from "react";
+import type { ChangeEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "./supabaseClient";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 
-const WEEKDAYS = [
+const WEEKDAYS: string[] = [
   "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"
 ];
-const HOURS = [];
+const HOURS: string[] = [];
 for (let h = 6; h < 23; ++h) {
   HOURS.push(`${String(h).padStart(2, "0")}:00-${String(h + 1).padStart(2, "0")}:00`);
 }
 
-// --- Hook: Get all courses for filters and management ---
+type Course = {
+  id?: string;
+  name: string;
+  weekdays: string[];
+  times: Record<string, string[]>;
+  capacity: number;
+};
+
+type Student = {
+  id: string;
+  first_name: string;
+  last_name: string;
+  nick_name: string;
+  courses: Record<string, Record<string, string[]>>;
+};
+
+type CourseFilter = {
+  id: string;
+  name: string;
+  weekdays: string[];
+  times: Record<string, string[]>;
+};
+
 function useCourses() {
-  return useQuery({
+  return useQuery<Course[]>({
     queryKey: ["courses_full"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -21,15 +45,14 @@ function useCourses() {
         .select("id,name,weekdays,times,capacity")
         .order("name");
       if (error) throw new Error(error.message);
-      return data || [];
+      return (data || []) as Course[];
     },
     staleTime: 120000,
   });
 }
 
-// --- Hook: Get minimal course list for filters only ---
 function useCourseFilters() {
-  return useQuery({
+  return useQuery<CourseFilter[]>({
     queryKey: ["courseFilters"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -37,35 +60,32 @@ function useCourseFilters() {
         .select("id,name,weekdays,times")
         .order("name");
       if (error) throw new Error(error.message);
-      return data || [];
+      return (data || []) as CourseFilter[];
     },
     staleTime: 120000,
   });
 }
 
-// --- Hook: Get students by filter ---
-function useFilteredStudents(courseId, day, time) {
-  return useQuery({
+function useFilteredStudents(courseId: string, day: string, time: string) {
+  return useQuery<Student[]>({
     queryKey: ["students", courseId, day, time],
     queryFn: async () => {
       if (!courseId) return [];
-      let { data, error } = await supabase
+      const { data, error } = await supabase
         .from("students")
         .select("id,first_name,last_name,nick_name,courses");
       if (error) throw new Error(error.message);
-
+      if (!data) return [];
       if (!day) {
-        return data.filter(s => s.courses?.[courseId]);
+        return data.filter((s: Student) => s.courses?.[courseId]);
       }
-      // Accept both "13:00" and "13:00-14:00"
       if (!time) {
-        return data.filter(s => s.courses?.[courseId]?.[day]);
+        return data.filter((s: Student) => s.courses?.[courseId]?.[day]);
       }
-      return data.filter(s => {
+      return data.filter((s: Student) => {
         const arr = s.courses?.[courseId]?.[day] || [];
-        return arr.some(t =>
-          t === time ||
-          t.startsWith(time.split("-")[0]) // covers if old format is present
+        return arr.some((t: string) =>
+          t === time || t.startsWith(time.split("-")[0])
         );
       });
     },
@@ -75,32 +95,30 @@ function useFilteredStudents(courseId, day, time) {
 }
 
 export default function CoursesAdminModal() {
-  const [tab, setTab] = useState("check");
-  const [courseId, setCourseId] = useState("");
-  const [day, setDay] = useState("");
-  const [time, setTime] = useState("");
+  const { t } = useTranslation();
+  const [tab, setTab] = useState<"check" | "manage">("check");
+  const [courseId, setCourseId] = useState<string>("");
+  const [day, setDay] = useState<string>("");
+  const [time, setTime] = useState<string>("");
 
-  const { data: courseFilters, isLoading: loadingCourses } = useCourseFilters();
-  const { data: filteredStudents, isLoading: loadingStudents } = useFilteredStudents(courseId, day, time);
-
-  const navigate = useNavigate();
+  const { data: courseFilters = [], isLoading: loadingCourses } = useCourseFilters();
+  const { data: filteredStudents = [], isLoading: loadingStudents } = useFilteredStudents(courseId, day, time);
 
   return (
     <div className="min-h-screen bg-[#f6f6f6] flex flex-col items-center py-8 px-2">
-      <div className="w-full max-w-5xl mx-auto">       
-        {/* Tabs */}
+      <div className="w-full max-w-5xl mx-auto">
         <div className="flex mb-6 border-b border-purple-200">
           <button
             className={`px-5 py-3 font-bold rounded-t-2xl transition ${tab === "check" ? "bg-white text-[#6654b3] border-x border-t border-purple-200 border-b-0 shadow" : "text-gray-400 hover:text-[#6654b3]"}`}
             onClick={() => setTab("check")}
           >
-            Check Courses
+            {t("checkCourses")}
           </button>
           <button
             className={`ml-3 px-5 py-3 font-bold rounded-t-2xl transition ${tab === "manage" ? "bg-white text-[#6654b3] border-x border-t border-purple-200 border-b-0 shadow" : "text-gray-400 hover:text-[#6654b3]"}`}
             onClick={() => setTab("manage")}
           >
-            Manage Courses
+            {t("manageCourses")}
           </button>
         </div>
         {tab === "check" ? (
@@ -124,25 +142,38 @@ export default function CoursesAdminModal() {
   );
 }
 
-// --- CHECK COURSES TAB ---
+type CheckCoursesTabProps = {
+  courseFilters: CourseFilter[];
+  loadingCourses: boolean;
+  courseId: string;
+  setCourseId: (id: string) => void;
+  day: string;
+  setDay: (d: string) => void;
+  time: string;
+  setTime: (t: string) => void;
+  filteredStudents: Student[];
+  loadingStudents: boolean;
+};
+
 function CheckCoursesTab({
-  courseFilters, loadingCourses,
-  courseId, setCourseId,
-  day, setDay,
-  time, setTime,
-  filteredStudents, loadingStudents,
-}) {
+  courseFilters,
+  courseId,
+  setCourseId,
+  day,
+  setDay,
+  time,
+  setTime,
+  filteredStudents,
+  loadingStudents,
+}: CheckCoursesTabProps) {
+  const { t } = useTranslation();
   const nav = useNavigate();
-
-  const course = courseFilters?.find(c => c.id === courseId);
-  const daysAvailable = course?.weekdays || [];
-
-  // Collect ALL time slots for selected day and course (unique), supporting both old and new formats
-  let timesAvailable = [];
+  const course = courseFilters?.find((c) => c.id === courseId);
+  const daysAvailable: string[] = course?.weekdays || [];
+  let timesAvailable: string[] = [];
   if (course && day && course.times && course.times[day]) {
     const raw = course.times[day] || [];
-    // Map "13:00" to "13:00-14:00" for filtering
-    const normalized = raw.map(t => {
+    const normalized = raw.map((t: string) => {
       if (t.includes("-")) return t;
       const h = Number(t.slice(0, 2));
       if (!isNaN(h) && h >= 6 && h < 23) return `${t}-${String(h + 1).padStart(2, "0")}:00`;
@@ -157,62 +188,61 @@ function CheckCoursesTab({
         <select
           className="px-4 py-2 rounded-xl border border-purple-200 text-[#6654b3] bg-white"
           value={courseId}
-          onChange={e => {
+          onChange={(e: ChangeEvent<HTMLSelectElement>) => {
             setCourseId(e.target.value);
             setDay("");
             setTime("");
           }}
         >
-          <option value="">Select Course</option>
-          {courseFilters?.map(c => (
+          <option value="">{t("selectCourse")}</option>
+          {courseFilters?.map((c) => (
             <option key={c.id} value={c.id}>{c.name}</option>
           ))}
         </select>
         <select
           className="px-4 py-2 rounded-xl border border-purple-200 text-[#6654b3] bg-white"
           value={day}
-          onChange={e => {
+          onChange={(e: ChangeEvent<HTMLSelectElement>) => {
             setDay(e.target.value);
             setTime("");
           }}
           disabled={!courseId}
         >
-          <option value="">Select Day</option>
-          {daysAvailable.map(d => (
+          <option value="">{t("selectDay")}</option>
+          {daysAvailable.map((d) => (
             <option key={d}>{d}</option>
           ))}
         </select>
         <select
           className="px-4 py-2 rounded-xl border border-purple-200 text-[#6654b3] bg-white"
           value={time}
-          onChange={e => setTime(e.target.value)}
+          onChange={(e: ChangeEvent<HTMLSelectElement>) => setTime(e.target.value)}
           disabled={!courseId || !day}
         >
-          <option value="">Select Time</option>
-          {timesAvailable.map(t => (
+          <option value="">{t("selectTime")}</option>
+          {timesAvailable.map((t) => (
             <option key={t}>{t}</option>
           ))}
         </select>
       </div>
-
       <div>
         {!courseId ? (
-          <div className="text-center text-gray-400 py-8">Choose a course to see students.</div>
+          <div className="text-center text-gray-400 py-8">{t("Choose a course to see students")}</div>
         ) : loadingStudents ? (
-          <div className="text-center text-gray-400 py-8">Loading…</div>
+          <div className="text-center text-gray-400 py-8">{t("loadingStudents")}</div>
         ) : (
           <table className="w-full bg-white border border-purple-200 rounded-2xl">
             <thead>
               <tr>
                 <th className="py-3 px-2 text-left font-semibold text-[#6654b3]">#</th>
-                <th className="py-3 px-2 text-left font-semibold text-[#6654b3]">Nick name</th>
-                <th className="py-3 px-2 text-left font-semibold text-[#6654b3]">Full name</th>
+                <th className="py-3 px-2 text-left font-semibold text-[#6654b3]">{t("nickName")}</th>
+                <th className="py-3 px-2 text-left font-semibold text-[#6654b3]">{t("fullName")}</th>
               </tr>
             </thead>
             <tbody>
               {!filteredStudents || filteredStudents.length === 0 ? (
                 <tr>
-                  <td colSpan={3} className="text-center text-gray-300 py-8">No students found.</td>
+                  <td colSpan={3} className="text-center text-gray-300 py-8">{t("noStudentsFound")}</td>
                 </tr>
               ) : (
                 filteredStudents.map((s, idx) => (
@@ -236,17 +266,16 @@ function CheckCoursesTab({
   );
 }
 
-// --- MANAGE COURSES TAB ---
 function ManageCoursesTab() {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const { data: courses = [], isLoading, refetch } = useCourses();
+  const { data: courses = [], isLoading } = useCourses();
 
-  const [editing, setEditing] = useState(null);
-  const [error, setError] = useState("");
+  const [editing, setEditing] = useState<Course | null>(null);
+  const [error, setError] = useState<string>("");
 
-  // Insert or update
-  const saveMutation = useMutation({
-    mutationFn: async (course) => {
+  const saveMutation = useMutation<void, any, Course>({
+    mutationFn: async (course: Course) => {
       const up = {
         name: course.name,
         weekdays: course.weekdays,
@@ -263,25 +292,24 @@ function ManageCoursesTab() {
     },
     onSuccess: () => {
       setEditing(null);
-      queryClient.invalidateQueries(["courses_full"]);
+      queryClient.invalidateQueries({ queryKey: ["courses_full"] });
     },
-    onError: err => setError(err.message),
+    onError: (err: any) => setError(err.message),
   });
 
-  // Delete
-  const deleteMutation = useMutation({
-    mutationFn: async (id) => {
-      if (!window.confirm("Delete this course?")) return;
+  const deleteMutation = useMutation<void, any, string>({
+    mutationFn: async (id: string) => {
+      if (!window.confirm(t("deleteCourseConfirm"))) return;
       const { error } = await supabase.from("courses").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries(["courses_full"]);
+      queryClient.invalidateQueries({ queryKey: ["courses_full"] });
     },
-    onError: err => setError(err.message),
+    onError: (err: any) => setError(err.message),
   });
 
-  function startEdit(course) {
+  function startEdit(course: Course | null) {
     setEditing(
       course || {
         name: "",
@@ -292,8 +320,9 @@ function ManageCoursesTab() {
     );
     setError("");
   }
-  function toggleDay(day) {
+  function toggleDay(day: string) {
     setEditing((c) => {
+      if (!c) return c;
       const days = c.weekdays.includes(day)
         ? c.weekdays.filter((d) => d !== day)
         : [...c.weekdays, day];
@@ -302,51 +331,57 @@ function ManageCoursesTab() {
       return { ...c, weekdays: days, times };
     });
   }
-  function addTime(day, t) {
-    setEditing((c) => ({
-      ...c,
-      times: {
-        ...c.times,
-        [day]: [...(c.times[day] || []), t],
-      },
-    }));
+  function addTime(day: string, t: string) {
+    setEditing((c) => {
+      if (!c) return c;
+      return {
+        ...c,
+        times: {
+          ...c.times,
+          [day]: [...(c.times[day] || []), t],
+        },
+      };
+    });
   }
-  function removeTime(day, idx) {
-    setEditing((c) => ({
-      ...c,
-      times: {
-        ...c.times,
-        [day]: c.times[day].filter((_, i) => i !== idx),
-      },
-    }));
+  function removeTime(day: string, idx: number) {
+    setEditing((c) => {
+      if (!c) return c;
+      return {
+        ...c,
+        times: {
+          ...c.times,
+          [day]: c.times[day].filter((_: string, i: number) => i !== idx),
+        },
+      };
+    });
   }
   function saveCourse() {
-    if (!editing.name) return setError("Enter a name");
+    if (!editing || !editing.name) return setError(t("enterCourseName"));
     saveMutation.mutate(editing);
   }
-  function deleteCourse(id) {
+  function deleteCourse(id: string) {
     deleteMutation.mutate(id);
   }
 
   return (
     <div className="relative bg-white rounded-3xl p-6">
-      <h2 className="text-xl font-bold mb-4 text-[#6654b3]">Manage Courses</h2>
+      <h2 className="text-xl font-bold mb-4 text-[#6654b3]">{t("manageCourses")}</h2>
       {isLoading ? (
-        <p>Loading…</p>
+        <p>{t("loadingCourses")}</p>
       ) : (
         <>
           <table className="w-full mb-4 border border-purple-200 rounded-lg">
             <thead>
               <tr>
-                <th className="px-4 py-2 text-left text-[#6654b3]">Course</th>
-                <th className="px-4 py-2 text-left text-[#6654b3]">Days</th>
-                <th className="px-4 py-2 text-left text-[#6654b3]">Times</th>
-                <th className="px-4 py-2 text-left text-[#6654b3]">Capacity</th>
+                <th className="px-4 py-2 text-left text-[#6654b3]">{t("course")}</th>
+                <th className="px-4 py-2 text-left text-[#6654b3]">{t("days")}</th>
+                <th className="px-4 py-2 text-left text-[#6654b3]">{t("times")}</th>
+                <th className="px-4 py-2 text-left text-[#6654b3]">{t("capacity")}</th>
                 <th className="px-4 py-2"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 bg-white">
-              {courses.map((c) => (
+              {courses.map((c: Course) => (
                 <tr key={c.id} className="hover:bg-purple-50 transition">
                   <td className="px-4 py-2">{c.name}</td>
                   <td className="px-4 py-2">{(c.weekdays || []).join(", ")}</td>
@@ -366,13 +401,13 @@ function ManageCoursesTab() {
                       onClick={() => startEdit(c)}
                       className="bg-gray-100 hover:bg-gray-200 text-blue-600 px-3 py-1 rounded-full text-sm"
                     >
-                      Edit
+                      {t("edit")}
                     </button>
                     <button
-                      onClick={() => deleteCourse(c.id)}
+                      onClick={() => deleteCourse(c.id!)}
                       className="bg-gray-100 hover:bg-gray-200 text-red-600 px-3 py-1 rounded-full text-sm"
                     >
-                      Delete
+                      {t("delete")}
                     </button>
                   </td>
                 </tr>
@@ -383,43 +418,39 @@ function ManageCoursesTab() {
             onClick={() => startEdit(null)}
             className="bg-[#6654b3] hover:bg-purple-700 text-white px-4 py-2 rounded-full"
           >
-            + Add Course
+            {t("addCourse")}
           </button>
         </>
       )}
-      {/* Edit modal */}
       {editing && (
         <div className="absolute inset-0 bg-white bg-opacity-95 rounded-3xl flex flex-col p-6 overflow-y-auto">
           <h3 className="text-lg font-bold mb-3 text-[#6654b3]">
-            {editing.id ? "Edit Course" : "New Course"}
+            {editing.id ? t("editCourse") : t("newCourse")}
           </h3>
           <label className="block mb-2">
-            Name
+            {t("courseName")}
             <input
               className="border rounded px-2 py-1 ml-2 w-full"
               value={editing.name}
-              onChange={(e) =>
-                setEditing((c) => ({ ...c, name: e.target.value }))
+              onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                setEditing((c) => c ? { ...c, name: e.target.value } : c)
               }
             />
           </label>
           <label className="block mb-2">
-            Capacity
+            {t("capacity")}
             <input
               type="number"
               min={0}
               className="border rounded px-2 py-1 ml-2 w-24"
               value={editing.capacity || 0}
-              onChange={(e) =>
-                setEditing((c) => ({
-                  ...c,
-                  capacity: Number(e.target.value),
-                }))
+              onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                setEditing((c) => c ? { ...c, capacity: Number(e.target.value) } : c)
               }
             />
           </label>
           <div className="mb-2">
-            <span className="font-semibold">Days:</span>
+            <span className="font-semibold">{t("days")}:</span>
             <div className="flex flex-wrap gap-2 mt-1">
               {WEEKDAYS.map((d) => (
                 <label
@@ -443,7 +474,7 @@ function ManageCoursesTab() {
           </div>
           {editing.weekdays.map((day) => (
             <div key={day} className="mb-2 ml-4">
-              <span className="font-semibold">{day} Times:</span>
+              <span className="font-semibold">{t("timesForDay", { day })}</span>
               <div className="flex flex-wrap gap-2 mt-1">
                 {(editing.times[day] || []).map((t, i) => (
                   <span
@@ -462,14 +493,14 @@ function ManageCoursesTab() {
                 <select
                   className="border rounded px-2 py-1 max-h-40 overflow-y-auto"
                   defaultValue=""
-                  onChange={(e) => {
+                  onChange={(e: ChangeEvent<HTMLSelectElement>) => {
                     if (e.target.value) {
                       addTime(day, e.target.value);
                       e.target.value = "";
                     }
                   }}
                 >
-                  <option value="">+ Add Time</option>
+                  <option value="">{t("addTime")}</option>
                   {HOURS
                     .filter(
                       (t) => !(editing.times[day] || []).includes(t)
@@ -486,15 +517,15 @@ function ManageCoursesTab() {
             <button
               onClick={saveCourse}
               className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-full"
-              disabled={saveMutation.isLoading}
+              disabled={saveMutation.status === "pending"}
             >
-              Save
+              {t("save")}
             </button>
             <button
               onClick={() => setEditing(null)}
               className="bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-full"
             >
-              Cancel
+              {t("cancel")}
             </button>
           </div>
         </div>

@@ -3,7 +3,7 @@ import React, {
   createContext,
   useState,
   useEffect,
-  useContext,   // ← need this for the hook
+  useContext,
 } from "react";
 import { supabase } from "./supabaseClient";
 
@@ -29,13 +29,18 @@ export function useAuth() {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
 
-  /* … the rest of your existing logic stays unchanged … */
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
-      if (data.session?.user) loadProfile(data.session.user);
+      if (data.session?.user) loadProfile({
+        id: data.session.user.id,
+        email: data.session.user.email ?? null // <-- Convert undefined to null
+      });
     });
     const { data: sub } = supabase.auth.onAuthStateChange((_, session) => {
-      if (session?.user) loadProfile(session.user);
+      if (session?.user) loadProfile({
+        id: session.user.id,
+        email: session.user.email ?? null // <-- Convert undefined to null
+      });
       else setUser(null);
     });
     return () => sub.subscription.unsubscribe();

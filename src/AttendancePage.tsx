@@ -1,11 +1,11 @@
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeftIcon, QrCodeIcon, ClockIcon } from "@heroicons/react/24/solid";
 import { supabase } from "./supabaseClient";
 import AttendanceQRBox from "./AttendanceQRBox";
+import { useTranslation } from "react-i18next";
 
-// —————————————————————————————————————————————————————————————————————
 // Theme & Palette
 const PALETTE = [
   "bg-pink-300", "bg-orange-300", "bg-yellow-300", "bg-lime-300",
@@ -14,7 +14,6 @@ const PALETTE = [
 const BG_SOFT = "#f6f6f6";
 const ACCENT_PURPLE = "#6654b3";
 
-// —————————————————————————————————————————————————————————————————————
 // Types
 interface Course { id: string; name: string }
 interface Student {
@@ -33,14 +32,13 @@ interface AttRow {
   approved_by: string | null;
 }
 
-// —————————————————————————————————————————————————————————————————————
 // Helpers
 const today = () => new Date().toISOString().slice(0,10);
 const ding  = new Audio("/ding.wav");
 const beep  = new Audio("/wrongbeep.wav");
 
-// —————————————————————————————————————————————————————————————————————
 export default function AttendancePage() {
+  const { t } = useTranslation();
   const nav = useNavigate();
 
   // UI State
@@ -52,8 +50,8 @@ export default function AttendancePage() {
 
   useEffect(() => {
     if (!scanResult) return;
-    const t = setTimeout(() => setScanResult(null), 4000);
-    return () => clearTimeout(t);
+    const tmo = setTimeout(() => setScanResult(null), 4000);
+    return () => clearTimeout(tmo);
   }, [scanResult]);
 
   // Data State
@@ -67,16 +65,18 @@ export default function AttendancePage() {
   useEffect(() => {
     (async () => {
       const { data: c } = await supabase
-        .from<Course>("courses").select("id,name").order("name");
-      setCourses(c || []);
+        .from("courses")
+        .select("id,name")
+        .order("name");
+      setCourses((c as Course[]) || []);
       setCoursesLoading(false);
 
       const [sReq, aReq] = await Promise.all([
-        supabase.from<Student>("students").select("id,first_name,last_name,courses,course_limits,qr_code_url"),
-        supabase.from<AttRow>("attendance").select("*").gte("attended_at_ts", today())
+        supabase.from("students").select("id,first_name,last_name,courses,course_limits,qr_code_url"),
+        supabase.from("attendance").select("*").gte("attended_at_ts", today())
       ]);
-      setStudents(sReq.data || []);
-      setRows(aReq.data || []);
+      setStudents((sReq.data as Student[]) || []);
+      setRows((aReq.data as AttRow[]) || []);
       setDataLoading(false);
     })();
   }, []);
@@ -131,14 +131,14 @@ export default function AttendancePage() {
           setRows(rs => rs.filter(r => r.id !== existing.id));
         }
         setScanResult({
-          message: `Unchecked ${stu.first_name} ${stu.last_name}`,
+          message: t("uncheckedStudent", { first: stu.first_name, last: stu.last_name }),
           type: "error"
         });
       } else {
         // limit guard
         if (lim(stu,cid) && cnt(stu.id,cid) >= lim(stu,cid)) {
           setScanResult({
-            message: `Over limit for ${stu.first_name} ${stu.last_name}`,
+            message: t("overLimit", { first: stu.first_name, last: stu.last_name }),
             type: "error"
           });
           return;
@@ -154,7 +154,7 @@ export default function AttendancePage() {
         if (error) throw error;
         setRows(rs => [...rs, data![0]]);
         setScanResult({
-          message: `Checked in ${stu.first_name} ${stu.last_name}`,
+          message: t("checkedInStudent", { first: stu.first_name, last: stu.last_name }),
           type: "success"
         });
       }
@@ -169,7 +169,7 @@ export default function AttendancePage() {
     setScanOpen(false);
     if (!stu) {
       beep.pause(); beep.currentTime=0; beep.play();
-      setScanResult({ message: "Unknown code", type: "error" });
+      setScanResult({ message: t("unknownCode"), type: "error" });
       return;
     }
     if (rows.some(r =>
@@ -178,7 +178,7 @@ export default function AttendancePage() {
     )) {
       beep.pause(); beep.currentTime=0; beep.play();
       setScanResult({
-        message: `${stu.first_name} ${stu.last_name} already scanned`,
+        message: t("alreadyScanned", { first: stu.first_name, last: stu.last_name }),
         type: "error"
       });
       return;
@@ -188,12 +188,12 @@ export default function AttendancePage() {
       .select();
     if (error) {
       beep.pause(); beep.currentTime=0; beep.play();
-      setScanResult({ message: "Scan failed", type: "error" });
+      setScanResult({ message: t("scanFailed"), type: "error" });
     } else {
       setRows(rs => [...rs, data![0]]);
       ding.pause(); ding.currentTime=0; ding.play();
       setScanResult({
-        message: `Pending: ${stu.first_name} ${stu.last_name}`,
+        message: t("pendingStudent", { first: stu.first_name, last: stu.last_name }),
         type: "success"
       });
     }
@@ -234,7 +234,7 @@ export default function AttendancePage() {
     });
     ding.pause(); ding.currentTime=0; ding.play();
     setScanResult({
-      message: `Checked in ${stu.first_name} ${stu.last_name}`,
+      message: t("checkedInStudent", { first: stu.first_name, last: stu.last_name }),
       type: "success"
     });
   }
@@ -267,9 +267,9 @@ export default function AttendancePage() {
     </AnimatePresence>
   );
 
-  // ——— Pending Tab ——————————————————————
+  // Pending Tab
   if (showPending) {
-    if (dataLoading) return <div className="p-6 text-center">Loading pending…</div>;
+    if (dataLoading) return <div className="p-6 text-center">{t("loadingPending")}</div>;
     return (
       <>
         {scanBanner}
@@ -279,10 +279,10 @@ export default function AttendancePage() {
               className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 shadow">
               <ArrowLeftIcon className="w-6 h-6 text-gray-700"/>
             </button>
-            <h2 className="text-2xl font-bold" style={{ color: ACCENT_PURPLE }}>Pending Check-ins</h2>
+            <h2 className="text-2xl font-bold" style={{ color: ACCENT_PURPLE }}>{t("pendingCheckins")}</h2>
           </header>
           {pending.length === 0 ? (
-            <p className="text-gray-500">No pending check-ins.</p>
+            <p className="text-gray-500">{t("noPendingCheckins")}</p>
           ) : pending.map(pr => {
             const stu = students.find(s => s.id === pr.student_id);
             if (!stu) return null;
@@ -302,7 +302,7 @@ export default function AttendancePage() {
     );
   }
 
-  // ——— Grid & Detail ————————————————————————
+  // Grid & Detail
   return (
     <div style={{ background: BG_SOFT }} className="min-h-screen">
       {scanBanner}
@@ -310,12 +310,8 @@ export default function AttendancePage() {
         {viewCourse == null ? (
           <main className="min-h-screen p-6 flex flex-col items-center gap-8" style={{ background: BG_SOFT }}>
             <div className="w-full max-w-5xl flex justify-between items-center mb-6">
-              <button onClick={()=>nav(-1)}
-                className="p-2 bg-gray-100 rounded-full hover:bg-gray-200 shadow">
-                <ArrowLeftIcon className="w-6 h-6 text-gray-700"/>
-              </button>
-              <h1 className="text-3xl font-extrabold" style={{ color: ACCENT_PURPLE }}>
-                Take Attendance
+                          <h1 className="text-3xl font-extrabold" style={{ color: ACCENT_PURPLE }}>
+                {t("takeAttendance")}
               </h1>
               <div className="flex gap-3">
                 <button onClick={()=>setShowPending(true)}
@@ -377,7 +373,7 @@ export default function AttendancePage() {
             </AnimatePresence>
           </main>
         ) : dataLoading ? (
-          <div className="p-6 text-center">Loading students…</div>
+          <div className="p-6 text-center">{t("loadingStudents")}</div>
         ) : (
           <motion.div
             key="detail"
@@ -409,10 +405,10 @@ export default function AttendancePage() {
             <table className="min-w-full bg-white rounded-xl shadow" style={{ boxShadow:"0 2px 12px 0 rgba(102,84,179,0.05)" }}>
               <thead style={{ background: "#ede9fe" }}>
                 <tr>
-                  <th className="px-3 py-2 text-left font-semibold" style={{ color: ACCENT_PURPLE }}>Student</th>
-                  <th className="px-3 py-2 font-semibold" style={{ color: ACCENT_PURPLE }}>Slots</th>
-                  <th className="px-3 py-2 font-semibold" style={{ color: ACCENT_PURPLE }}>Used / Limit</th>
-                  <th className="px-3 py-2 font-semibold" style={{ color: ACCENT_PURPLE }}>Check</th>
+                  <th className="px-3 py-2 text-left font-semibold" style={{ color: ACCENT_PURPLE }}>{t("student")}</th>
+                  <th className="px-3 py-2 font-semibold" style={{ color: ACCENT_PURPLE }}>{t("slots")}</th>
+                  <th className="px-3 py-2 font-semibold" style={{ color: ACCENT_PURPLE }}>{t("usedLimit")}</th>
+                  <th className="px-3 py-2 font-semibold" style={{ color: ACCENT_PURPLE }}>{t("check")}</th>
                   <th className="px-3 py-2 font-semibold" style={{ color: ACCENT_PURPLE }}>QR</th>
                 </tr>
               </thead>
@@ -439,7 +435,7 @@ export default function AttendancePage() {
                             .join(", ")
                           }
                         </td>
-                        <td className="px-3 py-1 text-center">{u}/{cap||"∞"}</td>
+                        <td className="px-3 py-1 text-center">{u}/{cap||t("unlimited")}</td>
                         <td className="px-3 py-1 text-center">
                           <motion.button whileTap={{ scale:0.82 }}
                             disabled={dis}
@@ -500,11 +496,11 @@ export default function AttendancePage() {
               exit={{ y:20 }}
               className="bg-white p-6 rounded-xl shadow-lg text-center"
             >
-              <h3 className="text-lg font-bold mb-4" style={{ color: ACCENT_PURPLE }}>Student QR Code</h3>
+              <h3 className="text-lg font-bold mb-4" style={{ color: ACCENT_PURPLE }}>{t("studentQrCode")}</h3>
               <img src={qrModalUrl} alt="QR" className="mx-auto max-w-xs mb-4"/>
               <div className="flex justify-center gap-4">
                 <a href={qrModalUrl} download className="px-4 py-2 bg-blue-100 hover:bg-blue-200 rounded-lg">
-                  Download
+                  {t("download")}
                 </a>
                 <button onClick={()=>{
                   const w = window.open("");
@@ -515,10 +511,10 @@ export default function AttendancePage() {
                     w.document.close();
                   }
                 }} className="px-4 py-2 bg-green-100 hover:bg-green-200 rounded-lg">
-                  Print
+                  {t("print")}
                 </button>
                 <button onClick={()=>setQrModalUrl(null)} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg">
-                  Close
+                  {t("close")}
                 </button>
               </div>
             </motion.div>
@@ -529,7 +525,6 @@ export default function AttendancePage() {
   );
 }
 
-// ——— Pending Row Component ————————————————————————
 function PendingRow({
   row, student, courses, onApprove, onDelete
 }: {
@@ -539,6 +534,7 @@ function PendingRow({
   onApprove: (r:AttRow,sel:string[]) => Promise<void>;
   onDelete: (r:AttRow) => Promise<void>;
 }) {
+  const { t } = useTranslation();
   const [selected, setSelected] = useState<string[]>([]);
   const choices = Object.keys(student.courses);
   return (
@@ -579,7 +575,7 @@ function PendingRow({
         onClick={()=>onApprove(row, selected)}
         className="px-5 py-2 bg-green-600 hover:bg-green-700 text-white rounded-full font-bold disabled:opacity-50 transition"
       >
-        Approve
+        {t("approve")}
       </button>
     </motion.div>
   );

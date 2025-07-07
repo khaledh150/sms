@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "./supabaseClient";
 import {
@@ -8,6 +8,7 @@ import {
   XMarkIcon,
 } from "@heroicons/react/24/outline";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 
 const SOFT_PURPLE = "#6654b3";
 const SOFT_WHITE = "#f6f6f6";
@@ -32,25 +33,25 @@ function fetchStudents() {
 }
 
 export default function StudentsPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
   const [exportOpen, setExportOpen] = useState(false);
 
-  // --- React Query fetch ---
   const {
     data,
     isLoading: loading,
     error,
-    refetch,
   } = useQuery({
     queryKey: ["students"],
     queryFn: fetchStudents,
-    staleTime: 1000 * 60 * 10, // 10min cache
+    staleTime: 1000 * 60 * 10,
     refetchOnWindowFocus: false,
   });
 
-  const students: Student[] = data?.data || [];
+  // FIX: type-safe get student data
+  const students: Student[] = data && "data" in data && Array.isArray(data.data) ? data.data : [];
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -79,7 +80,7 @@ export default function StudentsPage() {
             className="text-2xl sm:text-3xl font-extrabold tracking-tight"
             style={{ color: SOFT_PURPLE }}
           >
-            Students
+            {t("students")}
           </h1>
           <span
             className="ml-2 px-3 py-1 rounded-full text-lg font-semibold"
@@ -95,7 +96,7 @@ export default function StudentsPage() {
         <div className="flex gap-2 mt-3 sm:mt-0">
           <input
             type="text"
-            placeholder="Search students…"
+            placeholder={t("searchStudents")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="rounded-2xl border border-[#e1def5] px-4 py-2 bg-white shadow focus:outline-none focus:ring-2 focus:ring-[#6654b3] transition w-56"
@@ -110,7 +111,7 @@ export default function StudentsPage() {
               boxShadow: "0 2px 8px 0 rgba(102,84,179,0.06)"
             }}
           >
-            <PlusIcon className="w-5 h-5" /> Add a student
+            <PlusIcon className="w-5 h-5" /> {t("addStudent")}
           </button>
           <button
             onClick={() => setExportOpen(true)}
@@ -122,7 +123,7 @@ export default function StudentsPage() {
               boxShadow: "0 2px 8px 0 rgba(102,84,179,0.02)"
             }}
           >
-            <ArrowDownTrayIcon className="w-5 h-5" /> Export
+            <ArrowDownTrayIcon className="w-5 h-5" /> {t("export")}
           </button>
         </div>
       </div>
@@ -130,7 +131,7 @@ export default function StudentsPage() {
       {/* Table */}
       <div className="w-full max-w-6xl mx-auto overflow-x-auto">
         {loading ? (
-          <div className="text-center text-[#a7a3c0] py-10">Loading…</div>
+          <div className="text-center text-[#a7a3c0] py-10">{t("loading")}</div>
         ) : error ? (
           <div className="text-red-500 py-10 text-center">{error.message || error.toString()}</div>
         ) : (
@@ -169,18 +170,18 @@ export default function StudentsPage() {
                   />
                 </th>
                 <th className="px-2 py-3 text-left font-semibold" style={{ color: SOFT_PURPLE }}>#</th>
-                <th className="px-2 py-3 text-left font-semibold" style={{ color: SOFT_PURPLE }}>Nick name</th>
-                <th className="px-2 py-3 text-left font-semibold" style={{ color: SOFT_PURPLE }}>First name</th>
-                <th className="px-2 py-3 text-left font-semibold" style={{ color: SOFT_PURPLE }}>Last name</th>
-                <th className="px-2 py-3 text-left font-semibold" style={{ color: SOFT_PURPLE }}>Parent Phone</th>
-                <th className="px-2 py-3 text-left font-semibold" style={{ color: SOFT_PURPLE }}>Line ID</th>
+                <th className="px-2 py-3 text-left font-semibold" style={{ color: SOFT_PURPLE }}>{t("nickName")}</th>
+                <th className="px-2 py-3 text-left font-semibold" style={{ color: SOFT_PURPLE }}>{t("firstName")}</th>
+                <th className="px-2 py-3 text-left font-semibold" style={{ color: SOFT_PURPLE }}>{t("lastName")}</th>
+                <th className="px-2 py-3 text-left font-semibold" style={{ color: SOFT_PURPLE }}>{t("parentPhone")}</th>
+                <th className="px-2 py-3 text-left font-semibold" style={{ color: SOFT_PURPLE }}>{t("lineID")}</th>
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="text-center text-[#b0b0b0] py-8">
-                    No students found.
+                    {t("noStudentsFound")}
                   </td>
                 </tr>
               ) : (
@@ -257,7 +258,7 @@ export default function StudentsPage() {
               <XMarkIcon className="w-6 h-6" />
             </button>
             <h2 className="text-lg font-bold mb-3" style={{ color: "#ec4899" }}>
-              Export Students ({selectedRows.size})
+              {t("exportStudents", { count: selectedRows.size })}
             </h2>
             <div className="flex gap-2 justify-between">
               <button
@@ -265,12 +266,12 @@ export default function StudentsPage() {
                   // CSV Export
                   const selected = students.filter((s) => selectedRows.has(s.id));
                   const header = [
-                    "No.",
-                    "Nick name",
-                    "First name",
-                    "Last name",
-                    "Parent phone",
-                    "Line ID",
+                    t("no"),
+                    t("nickName"),
+                    t("firstName"),
+                    t("lastName"),
+                    t("parentPhone"),
+                    t("lineID"),
                   ];
                   const rows = selected.map((s, i) => [
                     i + 1,
@@ -297,7 +298,7 @@ export default function StudentsPage() {
                   color: "#fff",
                 }}
               >
-                <ArrowDownTrayIcon className="w-5 h-5" /> Export CSV
+                <ArrowDownTrayIcon className="w-5 h-5" /> {t("exportCSV")}
               </button>
               <button
                 onClick={() => {
@@ -310,7 +311,7 @@ export default function StudentsPage() {
                   color: "#fff",
                 }}
               >
-                <PrinterIcon className="w-5 h-5" /> Print
+                <PrinterIcon className="w-5 h-5" /> {t("print")}
               </button>
             </div>
           </div>
