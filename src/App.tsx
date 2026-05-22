@@ -8,41 +8,33 @@ import LoginPage from "./LoginPage";
 /* ---------- LAYOUT & GUARD ---------- */
 import Layout from "./Layout";
 import ProtectedRoute from "./ProtectedRoute";
-import ReviewHubPage from "./ReviewHubPage";
 
-/* ---------- MAIN PAGES ---------- */
+/* ---------- CORE POS SCREENS ---------- */
 import HomePage from "./HomePage";
-import NotificationsPage from "./NotificationsPage";
-import CoursesPage from "./CoursesPage";
-
-/* ---------- STUDENTS ---------- */
+import AttendancePage from "./AttendancePage";
 import StudentsPage from "./StudentsPage";
 import StudentProfilePage from "./StudentProfilePage";
-import StudentsInactivePage from "./StudentsInactivePage";
+import InboxPage from "./InboxPage";
+import MorePage from "./MorePage";
 
-
-/* ---------- OTHER SECTIONS ---------- */
+/* ---------- SECONDARY SCREENS ---------- */
 import AdmissionsPage from "./AdmissionsPage";
-import AttendancePage from "./AttendancePage";
+import CoursesPage from "./CoursesPage";
+import SettingsPage from "./SettingsPage";
 import BillingPage from "./BillingPage";
 import ReportsPage from "./ReportsPage";
-import MessagingPage from "./MessagingPage";
-import SettingsPage from "./SettingsPage";
-
-// If you want the React Query devtools for debugging, you can also:
-// import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 
 const queryClient = new QueryClient();
 
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
+      <BrowserRouter basename={import.meta.env.BASE_URL}>
         <Routes>
           {/* Public */}
           <Route path="/login" element={<LoginPage />} />
 
-          {/* Protected (app shell + sidebar) */}
+          {/* Protected (POS shell with bottom nav) */}
           <Route
             element={
               <ProtectedRoute>
@@ -50,33 +42,32 @@ export default function App() {
               </ProtectedRoute>
             }
           >
-            {/* Dashboard */}
+            {/* Core 5 POS screens */}
             <Route path="/dashboard" element={<HomePage />} />
+            <Route path="/attendance" element={<AttendancePage />} />
+            <Route path="/students" element={<StudentsPage />} />
+            <Route path="/students/:id" element={<StudentProfilePage />} />
+            <Route path="/inbox" element={<InboxPage />} />
+            <Route path="/more" element={<MorePage />} />
 
-            {/* Students */}
-            <Route path="/myschool/students" element={<StudentsPage />} />
-            <Route path="/myschool/student/:id" element={<StudentProfilePage />} />
-
-            {/* Admissions (and public apply) */}
+            {/* Secondary screens (accessible from More or deep links) */}
             <Route path="/admissions" element={<AdmissionsPage />} />
             <Route path="/apply/:token" element={<AdmissionsPage publicMode />} />
-
-            {/* Other sections */}
-            <Route path="/attendance" element={<AttendancePage />} />
+            <Route path="/courses" element={<CoursesPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
             <Route path="/billing" element={<BillingPage />} />
             <Route path="/reports" element={<ReportsPage />} />
-            <Route path="/messaging" element={<MessagingPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/review" element={<ReviewHubPage />} />
-            <Route path="/myschool/courses" element={<CoursesPage />} />
-            <Route path="/myschool/students/inactive" element={<StudentsInactivePage />} />
 
+            {/* Legacy redirects */}
+            <Route path="/myschool/students" element={<Navigate to="/students" replace />} />
+            <Route path="/myschool/student/:id" element={<Navigate to="/students/:id" replace />} />
+            <Route path="/myschool/students/inactive" element={<Navigate to="/students" replace />} />
+            <Route path="/myschool/courses" element={<Navigate to="/courses" replace />} />
+            <Route path="/review" element={<Navigate to="/inbox" replace />} />
+            <Route path="/review-hub" element={<Navigate to="/inbox" replace />} />
+            <Route path="/notifications" element={<Navigate to="/inbox" replace />} />
 
-            {/* Notifications */}
-            <Route path="/notifications" element={<NotificationsPage />} />
-            <Route path="/review-hub" element={<ReviewHubPage />} />
-            
-            {/* Fallback inside protected → dashboard */}
+            {/* Default → dashboard */}
             <Route index element={<Navigate to="/dashboard" replace />} />
           </Route>
 
@@ -84,7 +75,6 @@ export default function App() {
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </BrowserRouter>
-      {/* <ReactQueryDevtools initialIsOpen={false} /> */}
     </QueryClientProvider>
   );
 }

@@ -17,8 +17,9 @@ export interface User {
 /* ---------- context ---------- */
 export const AuthCtx = createContext<{
   user: User | null;
+  loading: boolean;
   setUser: (u: User | null) => void;
-}>({ user: null, setUser: () => {} });
+}>({ user: null, loading: true, setUser: () => {} });
 
 /* ---------- hook (convenience) ---------- */
 export function useAuth() {
@@ -28,20 +29,29 @@ export function useAuth() {
 /* ---------- provider ---------- */
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
-      if (data.session?.user) loadProfile({
-        id: data.session.user.id,
-        email: data.session.user.email ?? null // <-- Convert undefined to null
-      });
+      if (data.session?.user) {
+        loadProfile({
+          id: data.session.user.id,
+          email: data.session.user.email ?? null,
+        });
+      } else {
+        setLoading(false);
+      }
     });
     const { data: sub } = supabase.auth.onAuthStateChange((_, session) => {
-      if (session?.user) loadProfile({
-        id: session.user.id,
-        email: session.user.email ?? null // <-- Convert undefined to null
-      });
-      else setUser(null);
+      if (session?.user) {
+        loadProfile({
+          id: session.user.id,
+          email: session.user.email ?? null,
+        });
+      } else {
+        setUser(null);
+        setLoading(false);
+      }
     });
     return () => sub.subscription.unsubscribe();
   }, []);
@@ -54,6 +64,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .single();
     if (error && error.code !== "PGRST116") {
       console.error("loadProfile error", error);
+      setLoading(false);
       return;
     }
     setUser({
@@ -61,10 +72,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       email: supaUser.email,
       role: (data?.role as "admin" | "staff") ?? "staff",
     });
+    setLoading(false);
   }
 
   return (
-    <AuthCtx.Provider value={{ user, setUser }}>
+    <AuthCtx.Provider value={{ user, loading, setUser }}>
       {children}
     </AuthCtx.Provider>
   );

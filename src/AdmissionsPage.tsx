@@ -1,173 +1,85 @@
 import React, { useState, useRef } from "react";
-import type { FormEvent } from "react";
 import { useAuth } from "./AuthContext";
 import { supabase } from "./supabaseClient";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { motion, AnimatePresence } from "framer-motion";
+import { POS } from "./theme";
+import { ArrowLeftIcon, ArrowRightIcon, CheckCircleIcon } from "@heroicons/react/24/solid";
 
-// ---- Types ----
-export interface CourseRow {
-  id: string;
-  name: string;
-  weekdays: string[];
-  times: Record<string, string[]>;
-  capacity: number;
-}
+interface CourseRow { id: string; name: string; weekdays: string[]; times: Record<string, string[]>; capacity: number }
 
-interface FloatingMessageProps {
-  msg: string;
-  onClear: () => void;
-}
-
-// ---- React Query: fetch courses ----
 function useCoursesQuery() {
   return useQuery<CourseRow[]>({
     queryKey: ["courses"],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("courses")
-        .select("id,name,weekdays,times,capacity")
-        .order("name");
+      const { data } = await supabase.from("courses").select("id,name,weekdays,times,capacity").order("name");
       return (data ?? []) as CourseRow[];
     },
-    staleTime: 300000,
+    staleTime: 300_000,
   });
 }
 
-// ---- React Query: fetch/generate public admissions link ----
-function usePublicLinkQuery(enabled: boolean) {
-  return useQuery<string>({
-    queryKey: ["public-admissions-link"],
-    queryFn: async () => {
-      const { data: links } = await supabase
-        .from("application_links")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(1);
-      let link =
-        links && links[0] && new Date(links[0].expires_at) > new Date()
-          ? links[0]
-          : null;
-      if (!link) {
-        await supabase
-          .from("application_links")
-          .update({ expires_at: new Date(Date.now() - 60 * 1000) })
-          .neq("expires_at", null);
-        const { data: newLink } = await supabase
-          .from("application_links")
-          .insert([{ expires_at: new Date(Date.now() + 7 * 24 * 3600 * 1000) }])
-          .select("*")
-          .single();
-        link = newLink;
-      }
-      return `${window.location.origin}/apply/${link.id}`;
-    },
-    enabled,
-    refetchOnWindowFocus: false,
-  });
-}
-
-// ---- Floating notification ----
-function FloatingMessage({ msg, onClear }: FloatingMessageProps) {
-  React.useEffect(() => {
-    if (!msg) return;
-    const t = setTimeout(onClear, 3500);
-    return () => clearTimeout(t);
-  }, [msg, onClear]);
-  if (!msg) return null;
-  return (
-    <div className="fixed left-1/2 -translate-x-1/2 bottom-8 z-50 bg-[#6654b3] text-white rounded-2xl px-8 py-3 shadow-xl text-lg font-semibold fade-in">
-      {msg}
-    </div>
-  );
-}
-
-// ---- Main Component ----
 export default function AdmissionsPage({ publicMode = false }: { publicMode?: boolean }) {
   const { t } = useTranslation();
   const { user } = useAuth();
   const role = user?.role ?? null;
-  // Student fields
-  const [nick, setNick] = useState("");
-  const [first, setFirst] = useState("");
-  const [last, setLast] = useState("");
-  const [dob, setDob] = useState("");
-  const [mail, setMail] = useState("");
-  const [phone, setPhone] = useState("");
-  // Courses state
-  const [slots, setSlots] = useState<Record<string, Record<string, string[]>>>({});
-  const [limits, setLimits] = useState<Record<string, number>>({});
-  // Files state
+  const [step, setStep] = useState(1);
+  const totalSteps = 4;
+
+  // Fields
+  const [nick, setNick] = useState(""); const [first, setFirst] = useState(""); const [last, setLast] = useState("");
+  const [dob, setDob] = useState(""); const [lineId, setLineId] = useState(""); const [phone, setPhone] = useState("");
+  const [selectedCourse, setSelectedCourse] = useState<string | null>(null);
+  const [selectedDays, setSelectedDays] = useState<Record<string, string[]>>({});
+  const [hours, setHours] = useState(10);
   const [files, setFiles] = useState<File[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
-  // Misc state
   const [saving, setSaving] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const [floatMsg, setFloatMsg] = useState("");
   const [error, setError] = useState("");
-  // Link
-  const [showLink, setShowLink] = useState(false);
 
-  const {
-    data: publicLink,
-    refetch: refetchPublicLink,
-  } = usePublicLinkQuery(showLink && (role === "admin" || role === "staff"));
+  const { data: courses = [] } = useCoursesQuery();
+  const course = courses.find(c => c.id === selectedCourse);
 
-  const { data: courses = [], isLoading: loadingC } = useCoursesQuery();
-
-  function toggleCourse(cid: string) {
-    setSlots((s) => {
-      const next = { ...s };
-      if (next[cid]) {
-        delete next[cid];
-        setLimits((l) => {
-          const { [cid]: _, ...rest } = l;
-          return rest;
-        });
+  function toggleDay(day: string, time: string) {
+    setSelectedDays(prev => {
+      const next = { ...prev };
+      if (!next[day]) next[day] = [];
+      if (next[day].includes(time)) {
+        next[day] = next[day].filter(t => t !== time);
+        if (!next[day].length) delete next[day];
       } else {
-        next[cid] = {};
+        next[day] = [...next[day], time];
       }
       return next;
     });
   }
-  function toggleDay(cid: string, day: string) {
-    setSlots((s) => {
-      const next = { ...s };
-      const days = { ...(next[cid] || {}) };
-      if (days[day]) delete days[day];
-      else days[day] = [];
-      if (Object.keys(days).length) next[cid] = days;
-      else delete next[cid];
-      return next;
-    });
-  }
-  function addTime(cid: string, day: string, t: string) {
-    setSlots((s) => {
-      const next = { ...s };
-      next[cid] = next[cid] || {};
-      next[cid][day] = next[cid][day] || [];
-      if (!next[cid][day].includes(t)) next[cid][day].push(t);
-      return next;
-    });
-  }
-  function removeTime(cid: string, day: string, i: number) {
-    setSlots((s) => {
-      const next = { ...s };
-      next[cid][day].splice(i, 1);
-      if (!next[cid][day].length) delete next[cid][day];
-      if (!Object.keys(next[cid]).length) delete next[cid];
-      return next;
-    });
-  }
-  const addFiles = (f: File[]) => setFiles((p) => [...p, ...f]);
-  const rmFile = (i: number) => setFiles((p) => p.filter((_, idx) => idx !== i));
 
-  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
+  function validateStep(): boolean {
     setError("");
-    if (!Object.keys(slots).length) return setError(t("selectCourseError"));
-    if (!nick.trim()) return setError(t("enterNickError"));
-    setSaving(true);
+    if (step === 1) {
+      if (!nick.trim()) { setError(t("nicknameRequired")); return false; }
+      if (!first.trim()) { setError(t("firstNameRequired")); return false; }
+      if (!phone.trim()) { setError(t("phoneRequired")); return false; }
+    }
+    if (step === 2) {
+      if (!selectedCourse) { setError(t("pleaseSelectCourseAdm")); return false; }
+      if (Object.keys(selectedDays).length === 0) { setError(t("pleaseSelectDayTime")); return false; }
+    }
+    if (step === 3) {
+      if (hours < 1) { setError(t("hoursMustBeOneAdm")); return false; }
+    }
+    return true;
+  }
+
+  function nextStep() { if (validateStep()) setStep(s => Math.min(s + 1, totalSteps)); }
+  function prevStep() { setStep(s => Math.max(s - 1, 1)); setError(""); }
+
+  async function handleSubmit() {
+    if (!validateStep()) return;
+    setSaving(true); setError("");
+    // Upload receipts
     const urls: string[] = [];
     for (const f of files) {
       const fn = `${Date.now()}-${Math.random().toString(36).slice(2)}.${f.name.split(".").pop()}`;
@@ -176,262 +88,258 @@ export default function AdmissionsPage({ publicMode = false }: { publicMode?: bo
       const { data: pu } = supabase.storage.from("receipts").getPublicUrl(u.path);
       urls.push(pu.publicUrl);
     }
+    const slots = selectedCourse ? { [selectedCourse]: selectedDays } : {};
+    const limits = selectedCourse ? { [selectedCourse]: hours } : {};
+
     if (role === "admin") {
-      const { error: insErr } = await supabase.from("students").insert([{
-        nick_name: nick,
-        first_name: first,
-        last_name: last,
-        dob,
-        parent_line_id: mail,
-        parent_phone: phone,
-        courses: slots,
-        course_limits: limits,
-        payment_receipt_urls: urls,
-        joined_at: new Date().toISOString(),
-      }]);
+      // Direct enroll — create student + enrollments
+      const { data: newStudent, error: insErr } = await supabase.from("students").insert([{
+        nick_name: nick, first_name: first, last_name: last, dob: dob || null,
+        parent_line_id: lineId, parent_phone: phone,
+        courses: slots, course_limits: limits,
+        payment_receipt_urls: urls, joined_at: new Date().toISOString(), status: "active",
+      }]).select().single();
       if (insErr) { setError(insErr.message); setSaving(false); return; }
-      setFloatMsg(t("studentAdded", { nick }));
+      // Also insert into enrollments table
+      if (newStudent && selectedCourse) {
+        const enrollRows = Object.entries(selectedDays).flatMap(([day, times]) =>
+          times.map(time => ({
+            student_id: newStudent.id, course_id: selectedCourse,
+            weekday: day, time_slot: time, purchased_hours: hours, status: "active",
+          }))
+        );
+        if (enrollRows.length) await supabase.from("enrollments").insert(enrollRows);
+      }
       setSubmitted(true);
     } else {
       const { error: insErr } = await supabase.from("applications").insert([{
-        nick_name: nick,
-        first_name: first,
-        last_name: last,
-        dob,
-        parent_line_id: mail,
-        parent_phone: phone,
-        courses: slots,
-        course_limits: limits,
-        payment_receipt_urls: urls,
-        status: "pending",
+        nick_name: nick, first_name: first, last_name: last, dob: dob || null,
+        parent_line_id: lineId, parent_phone: phone,
+        courses: slots, course_limits: limits, payment_receipt_urls: urls, status: "pending",
       }]);
       if (insErr) { setError(insErr.message); setSaving(false); return; }
-      setFloatMsg(t("applicationSubmitted"));
       setSubmitted(true);
     }
     setSaving(false);
   }
 
-  React.useEffect(() => {
-    if (!publicMode && submitted) {
-      const timer = setTimeout(() => setSubmitted(false), 1200);
-      return () => clearTimeout(timer);
-    }
-  }, [publicMode, submitted]);
-
-  if (publicMode && submitted) {
-    // Public link thank you
+  if (submitted) {
     return (
-      <div className="min-h-[60vh] flex flex-col justify-center items-center bg-[#f6f6f6]">
-        <div className="bg-gradient-to-br from-blue-50 via-green-50 to-yellow-50 shadow-xl rounded-3xl px-8 py-12 max-w-md w-full flex flex-col items-center">
-          <div className="text-3xl font-extrabold mb-3 text-[#6654b3]">{t("thankYou")}</div>
-          <div className="text-lg text-gray-700 mb-4 text-center">
-            {t("applicationReceived")}<br />
-            {t("staffWillContact")}<br />
-            {t("youMayClose")}
-          </div>
-        </div>
+      <div className="min-h-[70vh] flex flex-col justify-center items-center p-6" style={{ background: POS.bgMain }}>
+        <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+          className="bg-white rounded-2xl px-8 py-12 max-w-md w-full text-center" style={{ boxShadow: POS.shadowXl }}>
+          <CheckCircleIcon className="w-16 h-16 mx-auto mb-4" style={{ color: POS.success }} />
+          <h2 className="text-2xl font-extrabold mb-2" style={{ color: POS.primary }}>
+            {role === "admin" ? t("studentAdded", { nick }) : t("applicationSubmitted")}
+          </h2>
+          <p className="text-sm" style={{ color: POS.textSecondary }}>
+            {role === "admin" ? t("studentEnrolled") : t("staffWillContact")}
+          </p>
+          <button onClick={() => { setSubmitted(false); setStep(1); setNick(""); setFirst(""); setLast(""); setDob(""); setPhone(""); setLineId(""); setSelectedCourse(null); setSelectedDays({}); setHours(10); setFiles([]); }}
+            className="mt-6 px-6 py-3 rounded-xl text-white font-bold" style={{ background: POS.primary }}>
+            {t("addAnother")}
+          </button>
+        </motion.div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-8 py-10 px-2 sm:px-6 max-w-3xl mx-auto" style={{ background: "#f6f6f6" }}>
-      <header className="mb-4">
-        <h1 className="text-3xl font-extrabold text-[#6654b3]">{t("admissionsTitle")}</h1>
-        <p className="text-lg text-[#6654b3] mt-2">
-          {t("admissionsIntro", { staffMsg: t(role === "admin" ? "enrollInstant" : "contactToConfirm") })}
-        </p>
-      </header>
-      <form onSubmit={handleSubmit} className="space-y-8">
-        {/* Student Info */}
-        <div className="bg-white border border-[#ece6fc] p-6 rounded-2xl shadow transition-all">
-          <h2 className="text-xl font-bold text-[#6654b3] mb-2">{t("studentInfo")}</h2>
-          <div className="grid md:grid-cols-3 gap-4">
-            <label className="flex flex-col gap-1">
-              <span className="font-semibold text-[#6654b3]">{t("nickName")}</span>
-              <input required className="border border-[#ece6fc] bg-purple-50 rounded-xl px-4 py-2"
-                     value={nick}
-                     onChange={e => setNick(e.target.value)}
-                     maxLength={40}
-                     pattern=".*" />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="font-semibold text-[#6654b3]">{t("firstName")}</span>
-              <input required className="border border-[#ece6fc] bg-purple-50 rounded-xl px-4 py-2"
-                     value={first}
-                     onChange={e => setFirst(e.target.value)}
-                     maxLength={40}
-                     pattern=".*" />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="font-semibold text-[#6654b3]">{t("lastName")}</span>
-              <input required className="border border-[#ece6fc] bg-purple-50 rounded-xl px-4 py-2"
-                     value={last}
-                     onChange={e => setLast(e.target.value)}
-                     maxLength={40}
-                     pattern=".*" />
-            </label>
-          </div>
-          <label className="flex flex-col gap-1 mt-4 w-full md:w-1/2">
-            <span className="font-semibold text-[#6654b3]">{t("dob")}</span>
-            <input required type="date" className="border border-[#ece6fc] bg-purple-50 rounded-xl px-4 py-2"
-                   value={dob} onChange={e => setDob(e.target.value)} />
-          </label>
-        </div>
-        {/* Guardian */}
-        <div className="bg-white border border-[#ece6fc] p-6 rounded-2xl shadow transition-all">
-          <h2 className="text-xl font-bold text-[#6654b3] mb-2">{t("guardian")}</h2>
-          <div className="grid md:grid-cols-2 gap-4">
-            <label className="flex flex-col gap-1">
-              <span className="font-semibold text-[#6654b3]">{t("lineAppId")}</span>
-              <input required className="border border-[#ece6fc] bg-purple-50 rounded-xl px-4 py-2"
-                     value={mail} onChange={e => setMail(e.target.value)} />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="font-semibold text-[#6654b3]">{t("phone")}</span>
-              <input required className="border border-[#ece6fc] bg-purple-50 rounded-xl px-4 py-2"
-                     value={phone} onChange={e => setPhone(e.target.value)} />
-            </label>
-          </div>
-        </div>
-        {/* Courses */}
-        <div className="bg-white border border-[#ece6fc] p-6 rounded-2xl shadow transition-all">
-          <h2 className="text-xl font-bold text-[#6654b3] mb-2">{t("courses")}</h2>
-          {loadingC ? <div className="text-gray-400">{t("loadingCourses")}</div> : (courses.length === 0 ?
-            <div className="text-gray-400">{t("noCourses")}</div>
-            : courses.map(c => (
-              <div key={c.id} className={`mb-2 border ${slots[c.id] ? "border-[#6654b3] bg-purple-50" : "border-gray-200 bg-white"} rounded-xl p-3 transition-all`}>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={!!slots[c.id]} onChange={() => toggleCourse(c.id)} />
-                  <span className="text-lg">{c.name}</span>
-                  <span className="text-xs text-gray-400">{t("seats", { count: c.capacity })}</span>
-                </label>
-                {slots[c.id] && (
-                  <div className="ml-8 mt-2 mb-2">
-                    {c.weekdays.map((d) => (
-                      <div key={d} className="mb-1">
-                        <label className="font-semibold mr-2">
-                          <input
-                            type="checkbox"
-                            className="mr-1"
-                            checked={!!slots[c.id]?.[d]}
-                            onChange={() => toggleDay(c.id, d)}
-                          />
-                          {d}
-                        </label>
-                        {!!slots[c.id]?.[d] && (
-                          <>
-                            {slots[c.id][d].map((t, i) => (
-                              <span
-                                key={i}
-                                className="inline-flex items-center bg-[#ece6fc] rounded-full px-3 py-0.5 text-xs mr-2 mt-1"
-                              >
-                                {t}
-                                <button type="button" className="ml-1 text-red-500 font-bold" onClick={() => removeTime(c.id, d, i)}>✕</button>
-                              </span>
-                            ))}
-                            <select
-                              className="border rounded px-2 py-1 text-sm ml-2"
-                              defaultValue=""
-                              onChange={e => {
-                                if (e.target.value) {
-                                  addTime(c.id, d, e.target.value);
-                                  e.target.value = "";
-                                }
-                              }}
-                            >
-                              <option value="">{t("addTime")}</option>
-                              {(c.times[d] || []).filter(ti => !slots[c.id][d]?.includes(ti)).map((ti) => (
-                                <option key={ti}>{ti}</option>
-                              ))}
-                            </select>
-                          </>
-                        )}
-                      </div>
-                    ))}
-                    <div className="mt-2">
-                      <label className="flex items-center gap-2">
-                        <span className="font-semibold text-[#6654b3]">{t("hoursPurchased")}</span>
-                        <input
-                          type="number"
-                          min={1}
-                          className="w-20 border rounded px-2 py-1 bg-purple-50"
-                          value={limits[c.id] ?? ""}
-                          onChange={e => setLimits((l) => ({ ...l, [c.id]: Number(e.target.value) }))}
-                          required={!!slots[c.id]}
-                        />
-                      </label>
+    <div className="min-h-screen p-4 sm:p-6 max-w-2xl mx-auto">
+      {/* Progress */}
+      <div className="flex items-center gap-2 mb-6">
+        {Array.from({ length: totalSteps }, (_, i) => i + 1).map(s => (
+          <React.Fragment key={s}>
+            <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold transition-all"
+              style={{
+                background: step >= s ? POS.primary : POS.bgSurface,
+                color: step >= s ? "#fff" : POS.textMuted,
+              }}>
+              {step > s ? "✓" : s}
+            </div>
+            {s < totalSteps && <div className="flex-1 h-1 rounded-full" style={{ background: step > s ? POS.primary : POS.border }} />}
+          </React.Fragment>
+        ))}
+      </div>
+
+      <AnimatePresence mode="wait">
+        {/* STEP 1: Student + Guardian Info */}
+        {step === 1 && (
+          <motion.div key="s1" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }}
+            className="bg-white rounded-2xl p-5 border space-y-4" style={{ borderColor: POS.borderPurple, boxShadow: POS.shadowMd }}>
+            <h2 className="text-lg font-bold" style={{ color: POS.primary }}>{t("studentInfo")}</h2>
+            {[
+              { label: t("nickName") + " *", value: nick, set: setNick, placeholder: t("nicknamePlaceholder") },
+              { label: t("firstName") + " *", value: first, set: setFirst, placeholder: t("firstNamePlaceholder") },
+              { label: t("lastName"), value: last, set: setLast, placeholder: t("lastNamePlaceholder") },
+            ].map((f, i) => (
+              <div key={i}>
+                <label className="text-xs font-semibold" style={{ color: POS.textSecondary }}>{f.label}</label>
+                <input className="w-full border rounded-xl px-4 py-3 mt-1 text-base" style={{ borderColor: POS.border, minHeight: POS.touchComfortable }}
+                  value={f.value} onChange={e => f.set(e.target.value)} placeholder={f.placeholder} />
+              </div>
+            ))}
+            <div>
+              <label className="text-xs font-semibold" style={{ color: POS.textSecondary }}>{t("dob")}</label>
+              <input type="date" className="w-full border rounded-xl px-4 py-3 mt-1" style={{ borderColor: POS.border }} value={dob} onChange={e => setDob(e.target.value)} />
+            </div>
+            <h3 className="text-base font-bold pt-2" style={{ color: POS.primary }}>{t("guardian")}</h3>
+            <div>
+              <label className="text-xs font-semibold" style={{ color: POS.textSecondary }}>{t("phone")} *</label>
+              <input type="tel" className="w-full border rounded-xl px-4 py-3 mt-1 text-base" style={{ borderColor: POS.border, minHeight: POS.touchComfortable }}
+                value={phone} onChange={e => setPhone(e.target.value)} placeholder="08X-XXX-XXXX" />
+            </div>
+            <div>
+              <label className="text-xs font-semibold" style={{ color: POS.textSecondary }}>{t("lineAppId")}</label>
+              <input className="w-full border rounded-xl px-4 py-3 mt-1" style={{ borderColor: POS.border }}
+                value={lineId} onChange={e => setLineId(e.target.value)} placeholder="LINE ID" />
+            </div>
+          </motion.div>
+        )}
+
+        {/* STEP 2: Course + Schedule */}
+        {step === 2 && (
+          <motion.div key="s2" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }}
+            className="bg-white rounded-2xl p-5 border space-y-4" style={{ borderColor: POS.borderPurple, boxShadow: POS.shadowMd }}>
+            <h2 className="text-lg font-bold" style={{ color: POS.primary }}>{t("selectSchedule")}</h2>
+            {/* Course buttons */}
+            <div className="grid grid-cols-2 gap-2">
+              {courses.map(c => (
+                <motion.button key={c.id} type="button" whileTap={{ scale: 0.95 }}
+                  onClick={() => { setSelectedCourse(c.id); setSelectedDays({}); }}
+                  className="py-4 rounded-xl text-center font-bold transition-all"
+                  style={{
+                    background: selectedCourse === c.id ? POS.primary : POS.bgSurface,
+                    color: selectedCourse === c.id ? "#fff" : POS.primary,
+                    border: `2px solid ${selectedCourse === c.id ? POS.primary : POS.border}`,
+                    minHeight: POS.touchLarge,
+                  }}>
+                  {c.name}
+                </motion.button>
+              ))}
+            </div>
+            {/* Day + Time grid */}
+            {course && (
+              <div className="space-y-3 pt-2">
+                <p className="text-sm font-semibold" style={{ color: POS.textSecondary }}>{t("tapSlotsYouWant")}</p>
+                {course.weekdays.map(day => (
+                  <div key={day}>
+                    <p className="text-xs font-bold mb-1" style={{ color: POS.textPrimary }}>{day}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {(course.times[day] || []).map(time => {
+                        const isSelected = selectedDays[day]?.includes(time);
+                        return (
+                          <button key={time} type="button" onClick={() => toggleDay(day, time)}
+                            className="px-4 py-3 rounded-xl text-sm font-semibold transition-all"
+                            style={{
+                              background: isSelected ? POS.success : POS.bgSurface,
+                              color: isSelected ? "#fff" : POS.textPrimary,
+                              border: `2px solid ${isSelected ? POS.success : POS.border}`,
+                              minHeight: POS.touchComfortable,
+                            }}>
+                            {time}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
-                )}
-              </div>
-            ))
-          )}
-        </div>
-        {/* Payment */}
-        <div className="bg-white border border-[#ece6fc] p-6 rounded-2xl shadow transition-all">
-          <h2 className="text-xl font-bold text-[#6654b3] mb-2">{t("paymentReceipt")}</h2>
-          <div className="flex flex-col gap-2">
-            <button type="button"
-              onClick={() => fileRef.current?.click()}
-              className="rounded-full border border-[#ece6fc] bg-purple-50 text-[#6654b3] px-5 py-2 font-semibold hover:bg-purple-100 transition"
-            >
-              {t("chooseFiles")}
-            </button>
-            <input
-              ref={fileRef}
-              type="file"
-              multiple
-              accept="image/*,application/pdf"
-              className="hidden"
-              onChange={e => e.target.files && addFiles(Array.from(e.target.files))}
-            />
-            {files.length > 0 && (
-              <ul className="mt-2 space-y-1">
-                {files.map((f, i) => (
-                  <li key={i} className="flex items-center bg-[#ece6fc] rounded-full px-3 py-1 text-sm">
-                    <span className="truncate max-w-[180px]">{f.name}</span>
-                    <button type="button" className="ml-2 text-red-500 font-bold" onClick={() => rmFile(i)}>✕</button>
-                  </li>
                 ))}
-              </ul>
-            )}
-          </div>
-        </div>
-        {/* Error + Floating Msg */}
-        <FloatingMessage msg={floatMsg || error} onClear={() => { setFloatMsg(""); setError(""); }} />
-        {/* Submit */}
-        <div className="flex justify-end">
-          <button
-            type="submit"
-            disabled={saving}
-            className="bg-[#6654b3] hover:bg-purple-700 text-white font-bold px-8 py-3 rounded-xl shadow disabled:opacity-50 transition"
-          >
-            {role === "admin" ? (saving ? t("adding") : t("addStudent"))
-              : (saving ? t("submitting") : t("submitApplication"))}
-          </button>
-        </div>
-        {/* Public link for admin/staff only */}
-        {(!publicMode && (role === "admin" || role === "staff")) && (
-          <div className="mt-12 flex flex-col items-center gap-2">
-            <button
-              type="button"
-              onClick={() => { setShowLink(true); refetchPublicLink(); }}
-              className="px-5 py-2 rounded-full font-semibold border bg-[#f6f6f6] text-[#6654b3] border-[#ece6fc] hover:bg-[#ece6fc] transition"
-            >
-              {publicLink ? t("refreshPublicAdmissionsLink") : t("showPublicAdmissionsLink")}
-            </button>
-            {showLink && publicLink &&
-              <div className="flex items-center gap-2 mt-2 bg-[#ece6fc] px-4 py-2 rounded-xl w-full max-w-lg">
-                <input readOnly className="flex-1 bg-transparent outline-none" value={publicLink} />
-                <button onClick={() => navigator.clipboard.writeText(publicLink)}
-                  className="text-[#6654b3] hover:underline font-bold px-2">{t("copy")}</button>
               </div>
-            }
-          </div>
+            )}
+          </motion.div>
         )}
-      </form>
+
+        {/* STEP 3: Package (Hours) */}
+        {step === 3 && (
+          <motion.div key="s3" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }}
+            className="bg-white rounded-2xl p-5 border space-y-4" style={{ borderColor: POS.borderPurple, boxShadow: POS.shadowMd }}>
+            <h2 className="text-lg font-bold" style={{ color: POS.primary }}>{t("selectPackage")}</h2>
+            <p className="text-sm" style={{ color: POS.textSecondary }}>
+              {t("howManyHours", { course: course?.name || "" })}
+            </p>
+            <div className="grid grid-cols-3 gap-3">
+              {[10, 20, 30].map(h => (
+                <motion.button key={h} type="button" whileTap={{ scale: 0.95 }}
+                  onClick={() => setHours(h)}
+                  className="py-6 rounded-2xl text-center font-extrabold text-xl transition-all"
+                  style={{
+                    background: hours === h ? POS.primary : POS.bgSurface,
+                    color: hours === h ? "#fff" : POS.primary,
+                    border: `2px solid ${hours === h ? POS.primary : POS.border}`,
+                    minHeight: 100,
+                  }}>
+                  +{h}
+                  <span className="block text-xs font-semibold mt-1">{t("hrs")}</span>
+                </motion.button>
+              ))}
+            </div>
+            <div className="flex items-center gap-3 pt-2">
+              <span className="text-sm font-semibold" style={{ color: POS.textSecondary }}>{t("customLabel")}</span>
+              <input type="number" min={1} className="flex-1 rounded-xl border px-4 py-3"
+                style={{ borderColor: POS.border }} value={hours}
+                onChange={e => setHours(Number(e.target.value))} />
+            </div>
+          </motion.div>
+        )}
+
+        {/* STEP 4: Receipt + Submit */}
+        {step === 4 && (
+          <motion.div key="s4" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }}
+            className="bg-white rounded-2xl p-5 border space-y-4" style={{ borderColor: POS.borderPurple, boxShadow: POS.shadowMd }}>
+            <h2 className="text-lg font-bold" style={{ color: POS.primary }}>{t("reviewSubmit")}</h2>
+            {/* Summary */}
+            <div className="rounded-xl p-4 space-y-2" style={{ background: POS.bgMain }}>
+              <div className="flex justify-between"><span style={{ color: POS.textSecondary }}>Student:</span><span className="font-bold">{nick} ({first} {last})</span></div>
+              <div className="flex justify-between"><span style={{ color: POS.textSecondary }}>Phone:</span><span className="font-bold">{phone}</span></div>
+              <div className="flex justify-between"><span style={{ color: POS.textSecondary }}>Course:</span><span className="font-bold">{course?.name}</span></div>
+              <div className="flex justify-between"><span style={{ color: POS.textSecondary }}>Schedule:</span><span className="font-bold">{Object.entries(selectedDays).map(([d, t]) => `${d}: ${t.join(", ")}`).join(" | ")}</span></div>
+              <div className="flex justify-between"><span style={{ color: POS.textSecondary }}>Hours:</span><span className="font-bold text-lg" style={{ color: POS.primary }}>{hours} hrs</span></div>
+            </div>
+            {/* Receipt upload */}
+            <div>
+              <label className="text-xs font-semibold" style={{ color: POS.textSecondary }}>
+                {t("paymentReceiptOptional")}
+              </label>
+              <button type="button" onClick={() => fileRef.current?.click()}
+                className="w-full mt-1 rounded-xl border-2 border-dashed px-4 py-4 text-sm font-semibold text-center transition"
+                style={{ borderColor: POS.border, color: POS.primary }}>
+                {files.length ? t("filesSelected", { count: files.length }) : t("tapToAttachReceipt")}
+              </button>
+              <input ref={fileRef} type="file" multiple accept="image/*,application/pdf" className="hidden"
+                onChange={e => e.target.files && setFiles(Array.from(e.target.files))} />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Error */}
+      {error && (
+        <div className="mt-3 px-4 py-3 rounded-xl text-sm font-semibold" style={{ background: POS.dangerLight, color: POS.danger }}>
+          {error}
+        </div>
+      )}
+
+      {/* Navigation */}
+      <div className="flex gap-3 mt-5">
+        {step > 1 && (
+          <button onClick={prevStep} className="flex-1 py-4 rounded-xl border font-bold flex items-center justify-center gap-2"
+            style={{ borderColor: POS.border, color: POS.textSecondary, minHeight: POS.touchLarge }}>
+            <ArrowLeftIcon className="w-5 h-5" /> {t("backBtn")}
+          </button>
+        )}
+        {step < totalSteps ? (
+          <button onClick={nextStep} className="flex-1 py-4 rounded-xl text-white font-bold flex items-center justify-center gap-2"
+            style={{ background: POS.primaryGradient, minHeight: POS.touchLarge }}>
+            {t("nextBtn")} <ArrowRightIcon className="w-5 h-5" />
+          </button>
+        ) : (
+          <button onClick={handleSubmit} disabled={saving}
+            className="flex-1 py-4 rounded-xl text-white font-bold text-lg disabled:opacity-50"
+            style={{ background: POS.success, minHeight: POS.touchLarge }}>
+            {saving ? t("submittingBtn") : role === "admin" ? t("addStudent") : t("submitApplication")}
+          </button>
+        )}
+      </div>
     </div>
   );
 }

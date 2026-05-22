@@ -4,529 +4,294 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "./supabaseClient";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { motion } from "framer-motion";
+import { PlusIcon, PencilIcon, TrashIcon, XMarkIcon } from "@heroicons/react/24/solid";
+import { POS } from "./theme";
 
-const WEEKDAYS: string[] = [
-  "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"
-];
+const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const HOURS: string[] = [];
-for (let h = 6; h < 23; ++h) {
-  HOURS.push(`${String(h).padStart(2, "0")}:00-${String(h + 1).padStart(2, "0")}:00`);
-}
+for (let h = 6; h < 23; ++h) HOURS.push(`${String(h).padStart(2, "0")}:00-${String(h + 1).padStart(2, "0")}:00`);
 
-type Course = {
-  id?: string;
-  name: string;
-  weekdays: string[];
-  times: Record<string, string[]>;
-  capacity: number;
-};
+type Course = { id?: string; name: string; weekdays: string[]; times: Record<string, string[]>; capacity: number };
 
-type Student = {
-  id: string;
-  first_name: string;
-  last_name: string;
-  nick_name: string;
-  courses: Record<string, Record<string, string[]>>;
-};
-
-type CourseFilter = {
-  id: string;
-  name: string;
-  weekdays: string[];
-  times: Record<string, string[]>;
-};
-
-function useCourses() {
+function useFetchCourses() {
   return useQuery<Course[]>({
     queryKey: ["courses_full"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("courses")
-        .select("id,name,weekdays,times,capacity")
-        .order("name");
-      if (error) throw new Error(error.message);
+      const { data, error } = await supabase.from("courses").select("id,name,weekdays,times,capacity").order("name");
+      if (error) throw error;
       return (data || []) as Course[];
     },
-    staleTime: 120000,
+    staleTime: 120_000,
   });
 }
 
-function useCourseFilters() {
-  return useQuery<CourseFilter[]>({
-    queryKey: ["courseFilters"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("courses")
-        .select("id,name,weekdays,times")
-        .order("name");
-      if (error) throw new Error(error.message);
-      return (data || []) as CourseFilter[];
-    },
-    staleTime: 120000,
-  });
-}
-
-function useFilteredStudents(courseId: string, day: string, time: string) {
-  return useQuery<Student[]>({
-    queryKey: ["students", courseId, day, time],
+function useStudentsForCourseEnrollments(courseId: string) {
+  return useQuery({
+    queryKey: ["students_by_course", courseId],
     queryFn: async () => {
       if (!courseId) return [];
-      const { data, error } = await supabase
-        .from("students")
-        .select("id,first_name,last_name,nick_name,courses");
-      if (error) throw new Error(error.message);
-      if (!data) return [];
-      if (!day) {
-        return data.filter((s: Student) => s.courses?.[courseId]);
-      }
-      if (!time) {
-        return data.filter((s: Student) => s.courses?.[courseId]?.[day]);
-      }
-      return data.filter((s: Student) => {
-        const arr = s.courses?.[courseId]?.[day] || [];
-        return arr.some((t: string) =>
-          t === time || t.startsWith(time.split("-")[0])
-        );
+      const { data } = await supabase
+        .from("enrollments")
+        .select("student_id, students(id, first_name, last_name, nick_name)")
+        .eq("course_id", courseId).eq("status", "active");
+      // Deduplicate by student_id
+      const seen = new Set<string>();
+      return (data || []).map((e: any) => e.students).filter((s: any) => {
+        if (!s || seen.has(s.id)) return false;
+        seen.add(s.id); return true;
       });
     },
     enabled: !!courseId,
-    staleTime: 30000,
+    staleTime: 60_000,
   });
 }
 
-export default function CoursesAdminModal() {
+export default function CoursesPage() {
   const { t } = useTranslation();
   const [tab, setTab] = useState<"check" | "manage">("check");
-  const [courseId, setCourseId] = useState<string>("");
-  const [day, setDay] = useState<string>("");
-  const [time, setTime] = useState<string>("");
+  const [courseId, setCourseId] = useState("");
 
-  const { data: courseFilters = [], isLoading: loadingCourses } = useCourseFilters();
-  const { data: filteredStudents = [], isLoading: loadingStudents } = useFilteredStudents(courseId, day, time);
+  const { data: courses = [], isLoading } = useFetchCourses();
+  const { data: filteredStudents = [], isLoading: loadingStudents } = useStudentsForCourseEnrollments(courseId);
 
   return (
-    <div className="min-h-screen bg-[#f6f6f6] flex flex-col items-center py-8 px-2">
-      <div className="w-full max-w-5xl mx-auto">
-        <div className="flex mb-6 border-b border-purple-200">
-          <button
-            className={`px-5 py-3 font-bold rounded-t-2xl transition ${tab === "check" ? "bg-white text-[#6654b3] border-x border-t border-purple-200 border-b-0 shadow" : "text-gray-400 hover:text-[#6654b3]"}`}
-            onClick={() => setTab("check")}
-          >
-            {t("checkCourses")}
+    <div className="min-h-screen p-4 sm:p-6 max-w-4xl mx-auto">
+      <h1 className="text-2xl font-extrabold mb-4" style={{ color: POS.textPrimary }}>{t("courses")}</h1>
+
+      {/* Tabs */}
+      <div className="flex gap-2 mb-5">
+        {(["check", "manage"] as const).map(key => (
+          <button key={key} onClick={() => setTab(key)}
+            className="flex-1 py-3 rounded-xl font-bold text-sm transition-all"
+            style={{
+              background: tab === key ? POS.primary : POS.bgCard,
+              color: tab === key ? "#fff" : POS.textSecondary,
+              border: tab === key ? "none" : `1px solid ${POS.border}`,
+              boxShadow: tab === key ? POS.shadowSm : "none",
+            }}>
+            {key === "check" ? t("checkCourses") : t("manageCourses")}
           </button>
-          <button
-            className={`ml-3 px-5 py-3 font-bold rounded-t-2xl transition ${tab === "manage" ? "bg-white text-[#6654b3] border-x border-t border-purple-200 border-b-0 shadow" : "text-gray-400 hover:text-[#6654b3]"}`}
-            onClick={() => setTab("manage")}
-          >
-            {t("manageCourses")}
-          </button>
-        </div>
-        {tab === "check" ? (
-          <CheckCoursesTab
-            courseFilters={courseFilters}
-            loadingCourses={loadingCourses}
-            courseId={courseId}
-            setCourseId={setCourseId}
-            day={day}
-            setDay={setDay}
-            time={time}
-            setTime={setTime}
-            filteredStudents={filteredStudents}
-            loadingStudents={loadingStudents}
-          />
-        ) : (
-          <ManageCoursesTab />
-        )}
+        ))}
       </div>
+
+      {tab === "check" ? (
+        <CheckTab courses={courses} courseId={courseId} setCourseId={setCourseId}
+          students={filteredStudents} loading={loadingStudents} />
+      ) : (
+        <ManageTab courses={courses} isLoading={isLoading} />
+      )}
     </div>
   );
 }
 
-type CheckCoursesTabProps = {
-  courseFilters: CourseFilter[];
-  loadingCourses: boolean;
-  courseId: string;
-  setCourseId: (id: string) => void;
-  day: string;
-  setDay: (d: string) => void;
-  time: string;
-  setTime: (t: string) => void;
-  filteredStudents: Student[];
-  loadingStudents: boolean;
-};
-
-function CheckCoursesTab({
-  courseFilters,
-  courseId,
-  setCourseId,
-  day,
-  setDay,
-  time,
-  setTime,
-  filteredStudents,
-  loadingStudents,
-}: CheckCoursesTabProps) {
+function CheckTab({ courses, courseId, setCourseId, students, loading }: {
+  courses: Course[]; courseId: string; setCourseId: (id: string) => void;
+  students: any[]; loading: boolean;
+}) {
   const { t } = useTranslation();
   const nav = useNavigate();
-  const course = courseFilters?.find((c) => c.id === courseId);
-  const daysAvailable: string[] = course?.weekdays || [];
-  let timesAvailable: string[] = [];
-  if (course && day && course.times && course.times[day]) {
-    const raw = course.times[day] || [];
-    const normalized = raw.map((t: string) => {
-      if (t.includes("-")) return t;
-      const h = Number(t.slice(0, 2));
-      if (!isNaN(h) && h >= 6 && h < 23) return `${t}-${String(h + 1).padStart(2, "0")}:00`;
-      return t;
-    });
-    timesAvailable = Array.from(new Set(normalized)).sort();
-  }
 
   return (
-    <div className="w-full">
-      <div className="flex flex-wrap gap-4 mb-6">
-        <select
-          className="px-4 py-2 rounded-xl border border-purple-200 text-[#6654b3] bg-white"
-          value={courseId}
-          onChange={(e: ChangeEvent<HTMLSelectElement>) => {
-            setCourseId(e.target.value);
-            setDay("");
-            setTime("");
-          }}
-        >
-          <option value="">{t("selectCourse")}</option>
-          {courseFilters?.map((c) => (
-            <option key={c.id} value={c.id}>{c.name}</option>
+    <div>
+      <select value={courseId} onChange={(e: ChangeEvent<HTMLSelectElement>) => setCourseId(e.target.value)}
+        className="w-full rounded-xl border px-4 py-3 mb-4 text-base"
+        style={{ borderColor: POS.border, minHeight: POS.touchComfortable }}>
+        <option value="">{t("selectCourse")}</option>
+        {courses.map(c => <option key={c.id} value={c.id!}>{c.name}</option>)}
+      </select>
+
+      {!courseId ? (
+        <p className="text-center py-8" style={{ color: POS.textMuted }}>{t("selectCoursePrompt")}</p>
+      ) : loading ? (
+        <div className="space-y-2">{Array(3).fill(0).map((_, i) => <div key={i} className="h-16 rounded-xl bg-white animate-pulse" />)}</div>
+      ) : students.length === 0 ? (
+        <p className="text-center py-8" style={{ color: POS.textMuted }}>{t("noStudentsFound")}</p>
+      ) : (
+        <div className="space-y-2">
+          {students.map((s: any, idx: number) => (
+            <motion.div key={s.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.03 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => nav(`/students/${s.id}`)}
+              className="flex items-center gap-3 p-3 rounded-xl bg-white cursor-pointer hover:shadow-md transition"
+              style={{ border: `1px solid ${POS.borderLight}`, boxShadow: POS.shadowSm }}>
+              <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm" style={{ background: POS.primary }}>
+                {(s.nick_name || s.first_name || "?").charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <span className="font-bold text-sm" style={{ color: POS.textPrimary }}>
+                  {s.nick_name && <span style={{ color: POS.primary }}>"{s.nick_name}" </span>}
+                  {s.first_name} {s.last_name}
+                </span>
+              </div>
+            </motion.div>
           ))}
-        </select>
-        <select
-          className="px-4 py-2 rounded-xl border border-purple-200 text-[#6654b3] bg-white"
-          value={day}
-          onChange={(e: ChangeEvent<HTMLSelectElement>) => {
-            setDay(e.target.value);
-            setTime("");
-          }}
-          disabled={!courseId}
-        >
-          <option value="">{t("selectDay")}</option>
-          {daysAvailable.map((d) => (
-            <option key={d}>{d}</option>
-          ))}
-        </select>
-        <select
-          className="px-4 py-2 rounded-xl border border-purple-200 text-[#6654b3] bg-white"
-          value={time}
-          onChange={(e: ChangeEvent<HTMLSelectElement>) => setTime(e.target.value)}
-          disabled={!courseId || !day}
-        >
-          <option value="">{t("selectTime")}</option>
-          {timesAvailable.map((t) => (
-            <option key={t}>{t}</option>
-          ))}
-        </select>
-      </div>
-      <div>
-        {!courseId ? (
-          <div className="text-center text-gray-400 py-8">{t("Choose a course to see students")}</div>
-        ) : loadingStudents ? (
-          <div className="text-center text-gray-400 py-8">{t("loadingStudents")}</div>
-        ) : (
-          <table className="w-full bg-white border border-purple-200 rounded-2xl">
-            <thead>
-              <tr>
-                <th className="py-3 px-2 text-left font-semibold text-[#6654b3]">#</th>
-                <th className="py-3 px-2 text-left font-semibold text-[#6654b3]">{t("nickName")}</th>
-                <th className="py-3 px-2 text-left font-semibold text-[#6654b3]">{t("fullName")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {!filteredStudents || filteredStudents.length === 0 ? (
-                <tr>
-                  <td colSpan={3} className="text-center text-gray-300 py-8">{t("noStudentsFound")}</td>
-                </tr>
-              ) : (
-                filteredStudents.map((s, idx) => (
-                  <tr key={s.id} className="hover:bg-purple-50 transition">
-                    <td className="py-2 px-2">{idx + 1}</td>
-                    <td className="py-2 px-2 text-[#6654b3] font-bold">{s.nick_name || "—"}</td>
-                    <td
-                      className="py-2 px-2 text-blue-700 font-semibold cursor-pointer hover:underline"
-                      onClick={() => nav(`/myschool/student/${s.id}`)}
-                    >
-                      {s.first_name} {s.last_name}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function ManageCoursesTab() {
+function ManageTab({ courses, isLoading }: { courses: Course[]; isLoading: boolean }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const { data: courses = [], isLoading } = useCourses();
-
   const [editing, setEditing] = useState<Course | null>(null);
-  const [error, setError] = useState<string>("");
+  const [error, setError] = useState("");
 
   const saveMutation = useMutation<void, any, Course>({
-    mutationFn: async (course: Course) => {
-      const up = {
-        name: course.name,
-        weekdays: course.weekdays,
-        times: course.times,
-        capacity: course.capacity,
-      };
-      if (course.id) {
-        const { error } = await supabase.from("courses").update(up).eq("id", course.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from("courses").insert([up]);
-        if (error) throw error;
-      }
+    mutationFn: async (course) => {
+      const up = { name: course.name, weekdays: course.weekdays, times: course.times, capacity: course.capacity };
+      if (course.id) { const { error } = await supabase.from("courses").update(up).eq("id", course.id); if (error) throw error; }
+      else { const { error } = await supabase.from("courses").insert([up]); if (error) throw error; }
     },
-    onSuccess: () => {
-      setEditing(null);
-      queryClient.invalidateQueries({ queryKey: ["courses_full"] });
-    },
+    onSuccess: () => { setEditing(null); queryClient.invalidateQueries({ queryKey: ["courses_full"] }); queryClient.invalidateQueries({ queryKey: ["courses"] }); },
     onError: (err: any) => setError(err.message),
   });
 
   const deleteMutation = useMutation<void, any, string>({
-    mutationFn: async (id: string) => {
-      if (!window.confirm(t("deleteCourseConfirm"))) return;
+    mutationFn: async (id) => {
+      if (!confirm(t("deleteThisCourse"))) return;
       const { error } = await supabase.from("courses").delete().eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["courses_full"] });
-    },
-    onError: (err: any) => setError(err.message),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["courses_full"] }); queryClient.invalidateQueries({ queryKey: ["courses"] }); },
   });
 
   function startEdit(course: Course | null) {
-    setEditing(
-      course || {
-        name: "",
-        weekdays: [],
-        times: {},
-        capacity: 0,
-      }
-    );
+    setEditing(course || { name: "", weekdays: [], times: {}, capacity: 0 });
     setError("");
   }
+
   function toggleDay(day: string) {
-    setEditing((c) => {
+    setEditing(c => {
       if (!c) return c;
-      const days = c.weekdays.includes(day)
-        ? c.weekdays.filter((d) => d !== day)
-        : [...c.weekdays, day];
+      const days = c.weekdays.includes(day) ? c.weekdays.filter(d => d !== day) : [...c.weekdays, day];
       const times = { ...c.times };
       if (!days.includes(day)) delete times[day];
       return { ...c, weekdays: days, times };
     });
   }
-  function addTime(day: string, t: string) {
-    setEditing((c) => {
-      if (!c) return c;
-      return {
-        ...c,
-        times: {
-          ...c.times,
-          [day]: [...(c.times[day] || []), t],
-        },
-      };
-    });
-  }
-  function removeTime(day: string, idx: number) {
-    setEditing((c) => {
-      if (!c) return c;
-      return {
-        ...c,
-        times: {
-          ...c.times,
-          [day]: c.times[day].filter((_: string, i: number) => i !== idx),
-        },
-      };
-    });
-  }
-  function saveCourse() {
-    if (!editing || !editing.name) return setError(t("enterCourseName"));
-    saveMutation.mutate(editing);
-  }
-  function deleteCourse(id: string) {
-    deleteMutation.mutate(id);
-  }
 
   return (
-    <div className="relative bg-white rounded-3xl p-6">
-      <h2 className="text-xl font-bold mb-4 text-[#6654b3]">{t("manageCourses")}</h2>
+    <div>
       {isLoading ? (
-        <p>{t("loadingCourses")}</p>
+        <div className="space-y-3">{Array(3).fill(0).map((_, i) => <div key={i} className="h-20 rounded-2xl bg-white animate-pulse" />)}</div>
       ) : (
         <>
-          <table className="w-full mb-4 border border-purple-200 rounded-lg">
-            <thead>
-              <tr>
-                <th className="px-4 py-2 text-left text-[#6654b3]">{t("course")}</th>
-                <th className="px-4 py-2 text-left text-[#6654b3]">{t("days")}</th>
-                <th className="px-4 py-2 text-left text-[#6654b3]">{t("times")}</th>
-                <th className="px-4 py-2 text-left text-[#6654b3]">{t("capacity")}</th>
-                <th className="px-4 py-2"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200 bg-white">
-              {courses.map((c: Course) => (
-                <tr key={c.id} className="hover:bg-purple-50 transition">
-                  <td className="px-4 py-2">{c.name}</td>
-                  <td className="px-4 py-2">{(c.weekdays || []).join(", ")}</td>
-                  <td className="px-4 py-2">
-                    {Object.entries(c.times || {})
-                      .map(([d, arr]) =>
-                        arr.length ? (
-                          <div key={d}>
-                            {d}: {arr.join(", ")}
-                          </div>
-                        ) : null
-                      )}
-                  </td>
-                  <td className="px-4 py-2">{c.capacity}</td>
-                  <td className="px-4 py-2 space-x-2">
-                    <button
-                      onClick={() => startEdit(c)}
-                      className="bg-gray-100 hover:bg-gray-200 text-blue-600 px-3 py-1 rounded-full text-sm"
-                    >
-                      {t("edit")}
-                    </button>
-                    <button
-                      onClick={() => deleteCourse(c.id!)}
-                      className="bg-gray-100 hover:bg-gray-200 text-red-600 px-3 py-1 rounded-full text-sm"
-                    >
-                      {t("delete")}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <button
-            onClick={() => startEdit(null)}
-            className="bg-[#6654b3] hover:bg-purple-700 text-white px-4 py-2 rounded-full"
-          >
-            {t("addCourse")}
+          <div className="space-y-3 mb-4">
+            {courses.map(c => (
+              <div key={c.id} className="bg-white rounded-2xl p-4 border flex items-start gap-3"
+                style={{ borderColor: POS.borderLight, boxShadow: POS.shadowSm }}>
+                <div className="flex-1">
+                  <div className="font-bold" style={{ color: POS.textPrimary }}>{c.name}</div>
+                  <div className="text-xs mt-1" style={{ color: POS.textMuted }}>
+                    {(c.weekdays || []).join(", ")} | {t("capacityLabel", { capacity: c.capacity || "∞" })}
+                  </div>
+                  {Object.entries(c.times || {}).map(([d, arr]) => arr.length > 0 && (
+                    <div key={d} className="text-xs mt-0.5" style={{ color: POS.textSecondary }}>
+                      {d}: {arr.join(", ")}
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => startEdit(c)} className="p-2 rounded-xl hover:bg-gray-100" style={{ minHeight: "auto" }}>
+                    <PencilIcon className="w-4 h-4" style={{ color: POS.info }} />
+                  </button>
+                  <button onClick={() => deleteMutation.mutate(c.id!)} className="p-2 rounded-xl hover:bg-red-50" style={{ minHeight: "auto" }}>
+                    <TrashIcon className="w-4 h-4" style={{ color: POS.danger }} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <button onClick={() => startEdit(null)}
+            className="flex items-center gap-2 px-4 py-3 rounded-xl text-white font-bold text-sm"
+            style={{ background: POS.primary }}>
+            <PlusIcon className="w-5 h-5" /> {t("addCourse")}
           </button>
         </>
       )}
+
+      {/* Edit Modal */}
       {editing && (
-        <div className="absolute inset-0 bg-white bg-opacity-95 rounded-3xl flex flex-col p-6 overflow-y-auto">
-          <h3 className="text-lg font-bold mb-3 text-[#6654b3]">
-            {editing.id ? t("editCourse") : t("newCourse")}
-          </h3>
-          <label className="block mb-2">
-            {t("courseName")}
-            <input
-              className="border rounded px-2 py-1 ml-2 w-full"
-              value={editing.name}
-              onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                setEditing((c) => c ? { ...c, name: e.target.value } : c)
-              }
-            />
-          </label>
-          <label className="block mb-2">
-            {t("capacity")}
-            <input
-              type="number"
-              min={0}
-              className="border rounded px-2 py-1 ml-2 w-24"
-              value={editing.capacity || 0}
-              onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                setEditing((c) => c ? { ...c, capacity: Number(e.target.value) } : c)
-              }
-            />
-          </label>
-          <div className="mb-2">
-            <span className="font-semibold">{t("days")}:</span>
-            <div className="flex flex-wrap gap-2 mt-1">
-              {WEEKDAYS.map((d) => (
-                <label
-                  key={d}
-                  className={`border rounded-full px-3 py-1 cursor-pointer ${
-                    editing.weekdays.includes(d)
-                      ? "bg-[#6654b3] text-white border-[#6654b3]"
-                      : "border-gray-300"
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    className="hidden"
-                    checked={editing.weekdays.includes(d)}
-                    onChange={() => toggleDay(d)}
-                  />
-                  {d}
-                </label>
-              ))}
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.3)" }}
+          onClick={() => setEditing(null)}>
+          <div className="bg-white rounded-2xl p-6 w-full max-w-lg mx-4 max-h-[85vh] overflow-y-auto" style={{ boxShadow: POS.shadowXl }}
+            onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold" style={{ color: POS.primary }}>
+                {editing.id ? t("editCourse") : t("newCourse")}
+              </h3>
+              <button onClick={() => setEditing(null)} style={{ minHeight: "auto" }}>
+                <XMarkIcon className="w-6 h-6" style={{ color: POS.textMuted }} />
+              </button>
             </div>
-          </div>
-          {editing.weekdays.map((day) => (
-            <div key={day} className="mb-2 ml-4">
-              <span className="font-semibold">{t("timesForDay", { day })}</span>
-              <div className="flex flex-wrap gap-2 mt-1">
-                {(editing.times[day] || []).map((t, i) => (
-                  <span
-                    key={i}
-                    className="inline-flex items-center bg-gray-200 rounded-full px-3 py-1 mr-2"
-                  >
-                    {t}
-                    <button
-                      onClick={() => removeTime(day, i)}
-                      className="ml-1 text-red-500"
-                    >
-                      ✕
-                    </button>
-                  </span>
+
+            <label className="block mb-3">
+              <span className="text-sm font-semibold" style={{ color: POS.textSecondary }}>{t("name")}</span>
+              <input className="w-full border rounded-xl px-4 py-3 mt-1" style={{ borderColor: POS.border }}
+                value={editing.name}
+                onChange={(e: ChangeEvent<HTMLInputElement>) => setEditing(c => c ? { ...c, name: e.target.value } : c)} />
+            </label>
+            <label className="block mb-3">
+              <span className="text-sm font-semibold" style={{ color: POS.textSecondary }}>{t("capacity")}</span>
+              <input type="number" min={0} className="w-full border rounded-xl px-4 py-3 mt-1" style={{ borderColor: POS.border }}
+                value={editing.capacity || 0}
+                onChange={(e: ChangeEvent<HTMLInputElement>) => setEditing(c => c ? { ...c, capacity: Number(e.target.value) } : c)} />
+            </label>
+
+            <div className="mb-3">
+              <span className="text-sm font-semibold" style={{ color: POS.textSecondary }}>{t("days")}</span>
+              <div className="flex flex-wrap gap-2 mt-2">
+                {WEEKDAYS.map(d => (
+                  <button key={d} type="button" onClick={() => toggleDay(d)}
+                    className="px-3 py-2 rounded-xl text-sm font-semibold transition"
+                    style={{
+                      background: editing.weekdays.includes(d) ? POS.primary : POS.bgSurface,
+                      color: editing.weekdays.includes(d) ? "#fff" : POS.primary,
+                    }}>
+                    {d.slice(0, 3)}
+                  </button>
                 ))}
-                <select
-                  className="border rounded px-2 py-1 max-h-40 overflow-y-auto"
-                  defaultValue=""
-                  onChange={(e: ChangeEvent<HTMLSelectElement>) => {
-                    if (e.target.value) {
-                      addTime(day, e.target.value);
-                      e.target.value = "";
-                    }
-                  }}
-                >
-                  <option value="">{t("addTime")}</option>
-                  {HOURS
-                    .filter(
-                      (t) => !(editing.times[day] || []).includes(t)
-                    )
-                    .map((t) => (
-                      <option key={t}>{t}</option>
-                    ))}
-                </select>
               </div>
             </div>
-          ))}
-          {error && <p className="text-red-600">{error}</p>}
-          <div className="flex gap-2 mt-4">
-            <button
-              onClick={saveCourse}
-              className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-full"
-              disabled={saveMutation.status === "pending"}
-            >
-              {t("save")}
-            </button>
-            <button
-              onClick={() => setEditing(null)}
-              className="bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-full"
-            >
-              {t("cancel")}
-            </button>
+
+            {editing.weekdays.map(day => (
+              <div key={day} className="mb-3 ml-2">
+                <span className="text-xs font-bold" style={{ color: POS.textSecondary }}>{t("dayTimes", { day })}</span>
+                <div className="flex flex-wrap gap-2 mt-1">
+                  {(editing.times[day] || []).map((tt, i) => (
+                    <span key={i} className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold"
+                      style={{ background: POS.bgSurface, color: POS.primary }}>
+                      {tt}
+                      <button onClick={() => setEditing(c => c ? { ...c, times: { ...c.times, [day]: c.times[day].filter((_: string, idx: number) => idx !== i) } } : c)}
+                        className="ml-1 font-bold" style={{ color: POS.danger, minHeight: "auto" }}>x</button>
+                    </span>
+                  ))}
+                  <select className="border rounded-xl px-2 py-1 text-sm" style={{ borderColor: POS.border }} defaultValue=""
+                    onChange={(e: ChangeEvent<HTMLSelectElement>) => {
+                      if (e.target.value) {
+                        setEditing(c => c ? { ...c, times: { ...c.times, [day]: [...(c.times[day] || []), e.target.value] } } : c);
+                        e.target.value = "";
+                      }
+                    }}>
+                    <option value="">{t("addTime")}</option>
+                    {HOURS.filter(h => !(editing.times[day] || []).includes(h)).map(h => <option key={h}>{h}</option>)}
+                  </select>
+                </div>
+              </div>
+            ))}
+
+            {error && <p className="text-sm mb-2" style={{ color: POS.danger }}>{error}</p>}
+
+            <div className="flex gap-3 mt-4">
+              <button onClick={() => setEditing(null)} className="flex-1 py-3 rounded-xl border font-bold"
+                style={{ borderColor: POS.border, color: POS.textSecondary }}>{t("cancel")}</button>
+              <button onClick={() => { if (!editing.name) { setError(t("enterName")); return; } saveMutation.mutate(editing); }}
+                disabled={saveMutation.status === "pending"}
+                className="flex-1 py-3 rounded-xl text-white font-bold disabled:opacity-50"
+                style={{ background: POS.success }}>{t("save")}</button>
+            </div>
           </div>
         </div>
       )}
