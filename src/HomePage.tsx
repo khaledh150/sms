@@ -107,7 +107,7 @@ export default function HomePage() {
       const cName = courseNameMap.get(a.course_id) || "Unknown Course";
       if (!map.has(a.course_id)) map.set(a.course_id, { courseName: cName, entries: [] });
       const stu = studentMap.get(a.student_id);
-      const name = stu ? (stu.nick_name || `${stu.first_name} ${stu.last_name}`) : a.student_id;
+      const name = stu ? (stu.nick_name && stu.first_name ? `${stu.nick_name} '${stu.first_name}'` : stu.nick_name || `${stu.first_name} ${stu.last_name}`) : a.student_id;
       const d = new Date(a.attended_at_ts);
       const time = isNaN(d.getTime()) ? "" : d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
       map.get(a.course_id)!.entries.push({ studentName: name, time, studentId: a.student_id });

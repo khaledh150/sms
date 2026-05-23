@@ -75,7 +75,7 @@
   "capacity": "Capacity",
   "edit": "Edit",
   "delete": "Delete",
-  "addCourse": "+ Add Course",
+  "addCourse": "Add Course",
   "editCourse": "Edit Course",
   "newCourse": "New Course",
   "hourPackages": "Hour Packages",
@@ -503,6 +503,7 @@
   "copiedToClipboard": "Copied to clipboard!",
   "checkedInAt": "Checked in at {{time}}",
   "renewalApproaching": "Renewal Approaching",
+  "overlimitConfirm": "{{name}} has used {{used}}/{{purchased}} hours. Continue check-in?",
   "seeMore": "See more",
   "showLess": "Show less",
   "newNotification": "New notification"

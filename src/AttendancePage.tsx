@@ -147,6 +147,15 @@ export default function AttendancePage() {
     const key = `${stu.student_id}|${cid}`;
     if (busyKey === key) return;
 
+    // Check overlimit before check-in
+    if (!isHere(stu.student_id, cid)) {
+      const totalUsed = (allTimeHours.get(`${stu.student_id}|${cid}`) || 0) + (stu.initial_used_hours || 0);
+      if (stu.purchased_hours > 0 && totalUsed >= stu.purchased_hours) {
+        const name = stu.nick_name || stu.first_name;
+        if (!confirm(t("overlimitConfirm", { name, used: totalUsed, purchased: stu.purchased_hours }))) return;
+      }
+    }
+
     if (isHere(stu.student_id, cid)) {
       // Undo: remove ALL of today's records for this student+course
       (async () => {
@@ -165,7 +174,7 @@ export default function AttendancePage() {
     } else {
       setHourPicker({ stu, cid });
     }
-  }, [busyKey, isHere, rows, t]);
+  }, [busyKey, isHere, rows, t, allTimeHours]);
 
   const confirmCheckIn = useCallback(async (hours: number) => {
     if (!hourPicker) return;
@@ -433,7 +442,7 @@ export default function AttendancePage() {
   );
 }
 
-const INITIAL_SHOW = 6;
+const INITIAL_SHOW = 8;
 
 function StudentGrid({ students, courseId, isHere, todayUsed, busyKey, onCheckIn, allTimeHours, t, collapsed, navigate }: any) {
   const [expanded, setExpanded] = useState(false);
@@ -444,7 +453,7 @@ function StudentGrid({ students, courseId, isHere, todayUsed, busyKey, onCheckIn
 
   return (
     <>
-    <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-5">
+    <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-5">
       {visible.map((stu: StudentForGrid) => {
         const checked = isHere(stu.student_id, courseId);
         const todayHrs = todayUsed(stu.student_id, courseId);
@@ -459,8 +468,10 @@ function StudentGrid({ students, courseId, isHere, todayUsed, busyKey, onCheckIn
         let borderColor = "transparent";
         let bgColor = "rgba(255, 255, 255, 0.8)";
 
-        if (checked) { borderColor = "#34D399"; bgColor = "rgba(246, 255, 237, 0.95)"; }
-        else if (isOverlimit) { borderColor = "#F87171"; bgColor = "rgba(254, 242, 242, 0.95)"; }
+        if (checked && isOverlimit) { borderColor = "#EF4444"; bgColor = "rgba(254, 226, 226, 0.95)"; }
+        else if (checked) { borderColor = "#34D399"; bgColor = "rgba(246, 255, 237, 0.95)"; }
+        else if (isOverlimit) { borderColor = "#EF4444"; bgColor = "rgba(254, 226, 226, 0.95)"; }
+        else if (isApproaching) { borderColor = "#F59E0B"; bgColor = "rgba(255, 251, 230, 0.95)"; }
         else if (isLow) { borderColor = "#FBBF24"; bgColor = "rgba(255, 251, 230, 0.95)"; }
 
         return (
@@ -479,7 +490,8 @@ function StudentGrid({ students, courseId, isHere, todayUsed, busyKey, onCheckIn
             {/* Top Photo Area */}
             <div className="w-full h-[55%] shrink-0 flex items-center justify-center relative overflow-hidden bg-[#EBF0FF]">
                {checked && (
-                 <motion.div initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="absolute inset-0 z-10 flex items-center justify-center backdrop-blur-md bg-green-500/30">
+                 <motion.div initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+                   className={`absolute inset-0 z-10 flex items-center justify-center backdrop-blur-md ${isOverlimit ? "bg-red-500/30" : "bg-green-500/30"}`}>
                    <span className="text-white text-5xl drop-shadow-xl font-extrabold">✓ {todayHrs > 1 ? todayHrs + "h" : ""}</span>
                  </motion.div>
                )}
@@ -490,18 +502,11 @@ function StudentGrid({ students, courseId, isHere, todayUsed, busyKey, onCheckIn
 
             {/* Bottom Info Area */}
             <div className="flex flex-col items-center justify-center w-full h-[45%] bg-white/95 px-2 glass-card">
-              <div className="text-base font-bouncy leading-tight truncate w-full text-center cursor-pointer hover:underline"
-                style={{ color: isOverlimit ? POS.danger : isApproaching ? "#D97706" : POS.primary }}
+              <div className="font-bouncy leading-tight truncate w-full text-center cursor-pointer hover:underline"
+                style={{ color: isOverlimit ? POS.danger : isApproaching ? "#D97706" : POS.primary, fontSize: "0.95rem" }}
                 onClick={(e) => { e.stopPropagation(); navigate(`/students/${stu.student_id}`); }}>
-                {stu.nick_name || stu.first_name}
-                {stu.nick_name && stu.first_name && <span className="text-xs block truncate" style={{ color: POS.textMuted }}>'{stu.first_name}'</span>}
+                {stu.nick_name || stu.first_name}{stu.nick_name && stu.first_name ? ` '${stu.first_name}'` : ""}
               </div>
-
-              {!stu.isExpectedToday && !checked && (
-                <div className="text-[10px] font-bold mt-0.5 px-2 py-0.5 rounded-full" style={{ background: "rgba(107, 114, 128, 0.1)", color: "#6B7280" }}>
-                  {t("notScheduled")}
-                </div>
-              )}
 
               <div className="text-[11px] font-extrabold mt-1 px-3 py-1 rounded-full shadow-inner tracking-wider"
                 style={{

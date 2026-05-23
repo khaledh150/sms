@@ -75,7 +75,7 @@
   "capacity": "จำนวนที่รับ",
   "edit": "แก้ไข",
   "delete": "ลบ",
-  "addCourse": "+ เพิ่มหลักสูตร",
+  "addCourse": "เพิ่มหลักสูตร",
   "editCourse": "แก้ไขหลักสูตร",
   "newCourse": "เพิ่มหลักสูตรใหม่",
   "hourPackages": "แพ็คเกจชั่วโมง",
@@ -502,6 +502,7 @@
   "copiedToClipboard": "คัดลอกเรียบร้อย!",
   "checkedInAt": "เช็คอินเมื่อ {{time}}",
   "renewalApproaching": "ใกล้หมดชั่วโมง",
+  "overlimitConfirm": "{{name}} ใช้ไปแล้ว {{used}}/{{purchased}} ชั่วโมง ต้องการเช็คอินต่อหรือไม่?",
   "seeMore": "ดูเพิ่มเติม",
   "showLess": "แสดงน้อยลง",
   "newNotification": "การแจ้งเตือนใหม่"
