@@ -1,5 +1,5 @@
-// src/hooks/useApplications.ts — React Query wrappers for applications
 import { useQuery } from "@tanstack/react-query";
+import { STALE } from "../constants";
 import {
   fetchPendingApplications,
   fetchPendingChanges,
@@ -10,7 +10,7 @@ export function usePendingApplications() {
   return useQuery({
     queryKey: ["applications", "pending"],
     queryFn: fetchPendingApplications,
-    staleTime: 20_000,
+    staleTime: STALE.FAST,
   });
 }
 
@@ -18,7 +18,7 @@ export function usePendingChanges() {
   return useQuery({
     queryKey: ["application_changes", "pending"],
     queryFn: fetchPendingChanges,
-    staleTime: 20_000,
+    staleTime: STALE.FAST,
   });
 }
 
@@ -26,7 +26,7 @@ export function usePendingReviewCount(enabled = true) {
   return useQuery({
     queryKey: ["review_count"],
     queryFn: countPendingReviews,
-    staleTime: 10_000,
+    staleTime: STALE.FAST,
     enabled,
     initialData: 0,
   });

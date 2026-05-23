@@ -58,7 +58,7 @@ export async function checkIn(
     .insert({
       student_id: studentId,
       course_id: courseId,
-      attended_at_ts: todayStr(),
+      attended_at_ts: new Date().toISOString(),
       approved_by: approverId,
     })
     .select()

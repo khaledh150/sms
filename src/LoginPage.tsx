@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { supabase } from "./supabaseClient";
+import { useAuth } from "./AuthContext";
 import LanguageSwitcher from "./LanguageSwitcher";
 import { useTranslation } from "react-i18next";
 import { POS } from "./theme";
@@ -10,13 +11,17 @@ import Lottie from "lottie-react";
 export default function LoginPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [email, setEmail] = useState("");
   const [pw, setPw] = useState("");
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
   const [lottieData, setLottieData] = useState<any>(null);
 
-  // Fetch a cute, soft Lottie animation
+  useEffect(() => {
+    if (user) navigate("/dashboard", { replace: true });
+  }, [user, navigate]);
+
   useEffect(() => {
     fetch("https://lottie.host/933d6ea6-29a3-487b-bb66-3d7122eefcc2/x5xItQe6D2.json")
       .then(r => r.json()).then(data => setLottieData(data)).catch(e => console.error(e));
@@ -29,14 +34,11 @@ export default function LoginPage() {
       email: email.trim().toLowerCase(), password: pw.trim(),
     });
     if (error) setErr(error.message);
-    else {
-      navigate("/dashboard");
-    }
     setLoading(false);
   }
 
   return (
-    <div className="flex min-h-screen relative overflow-hidden" style={{ background: "#F4F7FE" }}>
+    <div className="flex h-[100dvh] relative overflow-hidden" style={{ background: "#F4F7FE" }}>
       {/* Interactive Background Blobs */}
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full floating-blob blue-blob" />
       <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full floating-blob pink-blob" style={{ animationDelay: "2s" }} />
@@ -60,7 +62,7 @@ export default function LoginPage() {
       </div>
 
       {/* Right Side - Form */}
-      <div className="flex-1 flex flex-col justify-center items-center relative z-10 glass">
+      <div className="flex-1 flex flex-col justify-start lg:justify-center items-center relative z-10 glass overflow-y-auto pt-8 lg:pt-0">
         <div className="absolute top-6 right-6 z-10"><LanguageSwitcher /></div>
 
         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.4 }}

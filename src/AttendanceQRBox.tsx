@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { Html5QrcodeScanner } from "html5-qrcode";
 import { useTranslation } from "react-i18next";
+import { POS } from "./theme";
+import { XMarkIcon } from "@heroicons/react/24/solid";
+import { Html5Qrcode } from "html5-qrcode";
 
 interface Props {
   onScan: (decodedText: string) => void;
@@ -10,116 +12,84 @@ interface Props {
 
 export default function AttendanceQRBox({ onScan, onClose }: Props) {
   const { t } = useTranslation();
-  const divId = useRef(`qr-reader-${Math.random().toString(36).substr(2, 9)}`);
-  const scannerRef = useRef<Html5QrcodeScanner | null>(null);
-  const [scanned, setScanned] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const scannerRef = useRef<Html5Qrcode | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setScanned(false);
+    if (!containerRef.current) return;
+    const scannerId = "qr-reader-" + Date.now();
+    containerRef.current.id = scannerId;
 
-    const config = {
-      fps: 10,
-      qrbox: 250,
-      rememberLastUsedCamera: true,
-    };
+    const html5Qr = new Html5Qrcode(scannerId);
+    scannerRef.current = html5Qr;
 
-    const scanner = new Html5QrcodeScanner(divId.current, config, false);
-    scannerRef.current = scanner;
-
-    const onDecode = (decoded: string) => {
-      if (scanned) return;
-      setScanned(true);
-      scanner
-        .clear() // stop camera
-        .catch(() => {})
-        .finally(() => {
-          onScan(decoded);
-        });
-    };
-
-    const onError = (err: any) => {
-      const msg = `${err}`;
-      if (!msg.includes("No MultiFormat Readers")) {
-        console.error("QR scan error:", err);
-      }
-    };
-
-    scanner.render(onDecode, onError);
+    html5Qr.start(
+      { facingMode: "environment" },
+      { fps: 10, qrbox: { width: 220, height: 220 }, aspectRatio: 1.0 },
+      (decodedText) => {
+        html5Qr.stop().catch(() => {});
+        scannerRef.current = null;
+        onScan(decodedText);
+      },
+      () => {}
+    ).catch((err: any) => {
+      setError(err?.message || err?.toString() || "Camera access denied");
+    });
 
     return () => {
-      scannerRef.current?.clear().catch(() => {});
+      if (scannerRef.current) {
+        scannerRef.current.stop().catch(() => {});
+        scannerRef.current = null;
+      }
     };
-  }, [onScan, scanned]);
+  }, [onScan]);
 
-  const restart = () => {
-    setScanned(false);
-    scannerRef.current
-      ?.clear()
-      .catch(() => {})
-      .then(() => {
-        if (!scannerRef.current) return;
-        scannerRef.current.render(
-          (decoded: string) => {
-            if (scanned) return;
-            setScanned(true);
-            scannerRef.current!
-              .clear()
-              .catch(() => {})
-              .finally(() => onScan(decoded));
-          },
-          (err: any) => {
-            const msg = `${err}`;
-            if (!msg.includes("No MultiFormat Readers")) {
-              console.error("QR scan error:", err);
-            }
-          }
-        );
-      });
-  };
+  function handleClose() {
+    if (scannerRef.current) {
+      scannerRef.current.stop().catch(() => {});
+      scannerRef.current = null;
+    }
+    onClose();
+  }
 
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.8 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.8 }}
-      transition={{ type: "spring", damping: 20 }}
-      className="fixed inset-0 bg-black/30 flex items-center justify-center z-50"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      style={{ background: "rgba(0,0,0,0.8)" }}
     >
       <motion.div
-        initial={{ y: -20 }}
-        animate={{ y: 0 }}
-        exit={{ y: 20 }}
-        className="bg-white rounded-2xl shadow-lg p-6 w-full max-w-sm"
+        initial={{ scale: 0.9, y: 20 }}
+        animate={{ scale: 1, y: 0 }}
+        exit={{ scale: 0.9, y: 20 }}
+        className="bg-white rounded-[2rem] shadow-2xl w-full max-w-sm mx-4 overflow-hidden"
       >
-        {/* header */}
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-bold">{t("scanStudentQr")}</h3>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-800">
-            ✕
+        <div className="flex items-center justify-between px-5 py-4">
+          <h3 className="text-lg font-bouncy" style={{ color: POS.primary }}>{t("scanStudentQr")}</h3>
+          <button onClick={handleClose}
+            className="w-9 h-9 rounded-full flex items-center justify-center"
+            style={{ background: POS.bgSurface, minHeight: "auto" }}>
+            <XMarkIcon className="w-5 h-5" style={{ color: POS.textMuted }} />
           </button>
         </div>
 
-        {/* fixed-size preview */}
-        <div
-          id={divId.current}
-          style={{ width: "100%", height: "300px" }}
-          className="mb-4 bg-gray-50"
-        />
-
-        {/* controls */}
-        <div className="flex justify-between gap-2">
-          {scanned && (
-            <button
-              onClick={restart}
-              className="flex-1 px-4 py-2 bg-blue-100 hover:bg-blue-200 rounded-lg"
-            >
-              {t("scanAnother")}
-            </button>
+        <div className="relative bg-black" style={{ aspectRatio: "1/1" }}>
+          {error ? (
+            <div className="absolute inset-0 flex items-center justify-center p-6 text-center">
+              <p className="text-white text-sm">{error}</p>
+            </div>
+          ) : (
+            <div ref={containerRef} className="w-full h-full" />
           )}
-          <button
-            onClick={onClose}
-            className="flex-1 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg"
-          >
+        </div>
+
+        <div className="px-5 py-4">
+          <button onClick={handleClose}
+            className="w-full py-3 rounded-xl border font-bold text-sm"
+            style={{ borderColor: POS.border, color: POS.textSecondary }}>
             {t("cancel")}
           </button>
         </div>

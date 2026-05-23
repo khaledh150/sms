@@ -5,34 +5,42 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence } from "framer-motion";
 import { POS } from "./theme";
+import { useToast } from "./hooks/useToast";
+import { validateReceiptFile } from "./hooks/useFileValidation";
 import { ArrowLeftIcon, ArrowRightIcon, CheckCircleIcon } from "@heroicons/react/24/solid";
 
-interface CourseRow { id: string; name: string; weekdays: string[]; times: Record<string, string[]>; capacity: number }
+interface HourPackage { hours: number; price: number }
+interface CourseRow { id: string; name: string; weekdays: string[]; times: Record<string, string[]>; capacity: number; hour_packages: HourPackage[]; book_price: number }
+
+interface CourseSelection {
+  days: Record<string, string[]>;
+  packageIdx: number;
+  includeBook: boolean;
+}
 
 function useCoursesQuery() {
   return useQuery<CourseRow[]>({
-    queryKey: ["courses"],
+    queryKey: ["courses", "admissions"],
     queryFn: async () => {
-      const { data } = await supabase.from("courses").select("id,name,weekdays,times,capacity").order("name");
+      const { data } = await supabase.from("courses").select("id,name,weekdays,times,capacity,hour_packages,book_price").order("name");
       return (data ?? []) as CourseRow[];
     },
     staleTime: 300_000,
   });
 }
 
-export default function AdmissionsPage({ publicMode = false }: { publicMode?: boolean }) {
+export default function AdmissionsPage(_props: { publicMode?: boolean }) {
   const { t } = useTranslation();
   const { user } = useAuth();
+  const { toast } = useToast();
   const role = user?.role ?? null;
   const [step, setStep] = useState(1);
-  const totalSteps = 4;
+  const totalSteps = 3;
 
-  // Fields
   const [nick, setNick] = useState(""); const [first, setFirst] = useState(""); const [last, setLast] = useState("");
   const [dob, setDob] = useState(""); const [lineId, setLineId] = useState(""); const [phone, setPhone] = useState("");
-  const [selectedCourse, setSelectedCourse] = useState<string | null>(null);
-  const [selectedDays, setSelectedDays] = useState<Record<string, string[]>>({});
-  const [hours, setHours] = useState(10);
+  // courseId -> { days, packageIdx }
+  const [selections, setSelections] = useState<Record<string, CourseSelection>>({});
   const [files, setFiles] = useState<File[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
@@ -40,21 +48,43 @@ export default function AdmissionsPage({ publicMode = false }: { publicMode?: bo
   const [error, setError] = useState("");
 
   const { data: courses = [] } = useCoursesQuery();
-  const course = courses.find(c => c.id === selectedCourse);
 
-  function toggleDay(day: string, time: string) {
-    setSelectedDays(prev => {
-      const next = { ...prev };
-      if (!next[day]) next[day] = [];
-      if (next[day].includes(time)) {
-        next[day] = next[day].filter(t => t !== time);
-        if (!next[day].length) delete next[day];
-      } else {
-        next[day] = [...next[day], time];
+  function toggleCourse(courseId: string) {
+    setSelections(prev => {
+      if (prev[courseId]) {
+        const next = { ...prev };
+        delete next[courseId];
+        return next;
       }
-      return next;
+      return { ...prev, [courseId]: { days: {}, packageIdx: 0, includeBook: false } };
     });
   }
+
+  function toggleDay(courseId: string, day: string, time: string) {
+    setSelections(prev => {
+      const sel = prev[courseId];
+      if (!sel) return prev;
+      const days = { ...sel.days };
+      if (!days[day]) days[day] = [];
+      if (days[day].includes(time)) {
+        days[day] = days[day].filter(t => t !== time);
+        if (!days[day].length) delete days[day];
+      } else {
+        days[day] = [...days[day], time];
+      }
+      return { ...prev, [courseId]: { ...sel, days } };
+    });
+  }
+
+  function setPackage(courseId: string, pkgIdx: number) {
+    setSelections(prev => {
+      const sel = prev[courseId];
+      if (!sel) return prev;
+      return { ...prev, [courseId]: { ...sel, packageIdx: pkgIdx } };
+    });
+  }
+
+  const selectedCourseIds = Object.keys(selections);
 
   function validateStep(): boolean {
     setError("");
@@ -64,11 +94,15 @@ export default function AdmissionsPage({ publicMode = false }: { publicMode?: bo
       if (!phone.trim()) { setError(t("phoneRequired")); return false; }
     }
     if (step === 2) {
-      if (!selectedCourse) { setError(t("pleaseSelectCourseAdm")); return false; }
-      if (Object.keys(selectedDays).length === 0) { setError(t("pleaseSelectDayTime")); return false; }
-    }
-    if (step === 3) {
-      if (hours < 1) { setError(t("hoursMustBeOneAdm")); return false; }
+      if (selectedCourseIds.length === 0) { setError(t("pleaseSelectCourseAdm")); return false; }
+      for (const cid of selectedCourseIds) {
+        const sel = selections[cid];
+        if (Object.keys(sel.days).length === 0) {
+          const c = courses.find(x => x.id === cid);
+          setError(t("pleaseSelectDayTime") + (c ? ` (${c.name})` : ""));
+          return false;
+        }
+      }
     }
     return true;
   }
@@ -79,20 +113,28 @@ export default function AdmissionsPage({ publicMode = false }: { publicMode?: bo
   async function handleSubmit() {
     if (!validateStep()) return;
     setSaving(true); setError("");
-    // Upload receipts
     const urls: string[] = [];
     for (const f of files) {
+      const validationErr = validateReceiptFile(f);
+      if (validationErr) { toast(validationErr, "error"); setSaving(false); return; }
       const fn = `${Date.now()}-${Math.random().toString(36).slice(2)}.${f.name.split(".").pop()}`;
       const { data: u, error: ue } = await supabase.storage.from("receipts").upload(fn, f, { cacheControl: "3600" });
-      if (ue) { setError(ue.message); setSaving(false); return; }
+      if (ue) { toast(ue.message, "error"); setSaving(false); return; }
       const { data: pu } = supabase.storage.from("receipts").getPublicUrl(u.path);
       urls.push(pu.publicUrl);
     }
-    const slots = selectedCourse ? { [selectedCourse]: selectedDays } : {};
-    const limits = selectedCourse ? { [selectedCourse]: hours } : {};
+
+    const slots: Record<string, Record<string, string[]>> = {};
+    const limits: Record<string, number> = {};
+    for (const cid of selectedCourseIds) {
+      const sel = selections[cid];
+      const c = courses.find(x => x.id === cid);
+      const pkg = c?.hour_packages?.[sel.packageIdx];
+      slots[cid] = sel.days;
+      limits[cid] = pkg?.hours ?? 10;
+    }
 
     if (role === "admin") {
-      // Direct enroll — create student + enrollments
       const { data: newStudent, error: insErr } = await supabase.from("students").insert([{
         nick_name: nick, first_name: first, last_name: last, dob: dob || null,
         parent_line_id: lineId, parent_phone: phone,
@@ -100,14 +142,16 @@ export default function AdmissionsPage({ publicMode = false }: { publicMode?: bo
         payment_receipt_urls: urls, joined_at: new Date().toISOString(), status: "active",
       }]).select().single();
       if (insErr) { setError(insErr.message); setSaving(false); return; }
-      // Also insert into enrollments table
-      if (newStudent && selectedCourse) {
-        const enrollRows = Object.entries(selectedDays).flatMap(([day, times]) =>
-          times.map(time => ({
-            student_id: newStudent.id, course_id: selectedCourse,
-            weekday: day, time_slot: time, purchased_hours: hours, status: "active",
-          }))
-        );
+      if (newStudent) {
+        const enrollRows = selectedCourseIds.map(cid => {
+          const sel = selections[cid];
+          const c = courses.find(x => x.id === cid);
+          const pkg = c?.hour_packages?.[sel.packageIdx];
+          return {
+            student_id: newStudent.id, course_id: cid,
+            schedule: sel.days, purchased_hours: pkg?.hours ?? 10, status: "active",
+          };
+        });
         if (enrollRows.length) await supabase.from("enrollments").insert(enrollRows);
       }
       setSubmitted(true);
@@ -123,6 +167,18 @@ export default function AdmissionsPage({ publicMode = false }: { publicMode?: bo
     setSaving(false);
   }
 
+  function totalPrice() {
+    let total = 0;
+    for (const cid of selectedCourseIds) {
+      const sel = selections[cid];
+      const c = courses.find(x => x.id === cid);
+      const pkg = c?.hour_packages?.[sel.packageIdx];
+      total += pkg?.price ?? 0;
+      if (sel.includeBook && c?.book_price) total += c.book_price;
+    }
+    return total;
+  }
+
   if (submitted) {
     return (
       <div className="min-h-[70vh] flex flex-col justify-center items-center p-6" style={{ background: POS.bgMain }}>
@@ -135,7 +191,7 @@ export default function AdmissionsPage({ publicMode = false }: { publicMode?: bo
           <p className="text-sm" style={{ color: POS.textSecondary }}>
             {role === "admin" ? t("studentEnrolled") : t("staffWillContact")}
           </p>
-          <button onClick={() => { setSubmitted(false); setStep(1); setNick(""); setFirst(""); setLast(""); setDob(""); setPhone(""); setLineId(""); setSelectedCourse(null); setSelectedDays({}); setHours(10); setFiles([]); }}
+          <button onClick={() => { setSubmitted(false); setStep(1); setNick(""); setFirst(""); setLast(""); setDob(""); setPhone(""); setLineId(""); setSelections({}); setFiles([]); }}
             className="mt-6 px-6 py-3 rounded-xl text-white font-bold" style={{ background: POS.primary }}>
             {t("addAnother")}
           </button>
@@ -192,109 +248,171 @@ export default function AdmissionsPage({ publicMode = false }: { publicMode?: bo
             <div>
               <label className="text-xs font-semibold" style={{ color: POS.textSecondary }}>{t("lineAppId")}</label>
               <input className="w-full border rounded-xl px-4 py-3 mt-1" style={{ borderColor: POS.border }}
-                value={lineId} onChange={e => setLineId(e.target.value)} placeholder="LINE ID" />
+                value={lineId} onChange={e => setLineId(e.target.value)} placeholder="LINE User ID" />
             </div>
           </motion.div>
         )}
 
-        {/* STEP 2: Course + Schedule */}
+        {/* STEP 2: Courses — select, pick days/times, pick package */}
         {step === 2 && (
           <motion.div key="s2" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }}
-            className="bg-white rounded-2xl p-5 border space-y-4" style={{ borderColor: POS.borderPurple, boxShadow: POS.shadowMd }}>
+            className="space-y-4">
             <h2 className="text-lg font-bold" style={{ color: POS.primary }}>{t("selectSchedule")}</h2>
-            {/* Course buttons */}
-            <div className="grid grid-cols-2 gap-2">
-              {courses.map(c => (
-                <motion.button key={c.id} type="button" whileTap={{ scale: 0.95 }}
-                  onClick={() => { setSelectedCourse(c.id); setSelectedDays({}); }}
-                  className="py-4 rounded-xl text-center font-bold transition-all"
-                  style={{
-                    background: selectedCourse === c.id ? POS.primary : POS.bgSurface,
-                    color: selectedCourse === c.id ? "#fff" : POS.primary,
-                    border: `2px solid ${selectedCourse === c.id ? POS.primary : POS.border}`,
-                    minHeight: POS.touchLarge,
-                  }}>
-                  {c.name}
-                </motion.button>
-              ))}
-            </div>
-            {/* Day + Time grid */}
-            {course && (
-              <div className="space-y-3 pt-2">
-                <p className="text-sm font-semibold" style={{ color: POS.textSecondary }}>{t("tapSlotsYouWant")}</p>
-                {course.weekdays.map(day => (
-                  <div key={day}>
-                    <p className="text-xs font-bold mb-1" style={{ color: POS.textPrimary }}>{day}</p>
-                    <div className="flex flex-wrap gap-2">
-                      {(course.times[day] || []).map(time => {
-                        const isSelected = selectedDays[day]?.includes(time);
-                        return (
-                          <button key={time} type="button" onClick={() => toggleDay(day, time)}
-                            className="px-4 py-3 rounded-xl text-sm font-semibold transition-all"
-                            style={{
-                              background: isSelected ? POS.success : POS.bgSurface,
-                              color: isSelected ? "#fff" : POS.textPrimary,
-                              border: `2px solid ${isSelected ? POS.success : POS.border}`,
-                              minHeight: POS.touchComfortable,
-                            }}>
-                            {time}
-                          </button>
-                        );
-                      })}
+
+            {courses.map(course => {
+              const isSelected = !!selections[course.id];
+              const sel = selections[course.id];
+              const packages: HourPackage[] = course.hour_packages || [];
+              const hasTimes = course.weekdays.length > 0 && Object.keys(course.times || {}).length > 0;
+
+              return (
+                <div key={course.id} className="bg-white rounded-2xl border overflow-hidden transition-all"
+                  style={{ borderColor: isSelected ? POS.primary : POS.borderLight, boxShadow: isSelected ? POS.shadowMd : POS.shadowSm }}>
+
+                  {/* Course header — tap to select/deselect */}
+                  <button onClick={() => toggleCourse(course.id)}
+                    className="w-full flex items-center justify-between px-5 py-4 text-left"
+                    style={{ background: isSelected ? POS.primary : "transparent", minHeight: "auto" }}>
+                    <span className="font-bold text-base" style={{ color: isSelected ? "#fff" : POS.textPrimary }}>
+                      {course.name}
+                    </span>
+                    <div className="w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0"
+                      style={{ borderColor: isSelected ? "#fff" : POS.border, background: isSelected ? "#fff" : "transparent" }}>
+                      {isSelected && <CheckCircleIcon className="w-5 h-5" style={{ color: POS.primary }} />}
                     </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                  </button>
+
+                  {/* Expanded: days/times + package */}
+                  {isSelected && (
+                    <div className="px-5 pb-5 space-y-4">
+                      {/* Days + Times */}
+                      {hasTimes && (
+                        <div className="space-y-2 pt-2">
+                          <p className="text-xs font-bold" style={{ color: POS.textSecondary }}>{t("tapSlotsYouWant")}</p>
+                          {course.weekdays.map(day => {
+                            const times = (course.times[day] || []).filter(t => t.trim() !== "");
+                            if (times.length === 0) return null;
+                            return (
+                              <div key={day}>
+                                <p className="text-xs font-bold mb-1" style={{ color: POS.textPrimary }}>{day}</p>
+                                <div className="flex flex-wrap gap-2">
+                                  {times.map(time => {
+                                    const active = sel.days[day]?.includes(time);
+                                    return (
+                                      <button key={time} type="button" onClick={() => toggleDay(course.id, day, time)}
+                                        className="px-3 py-2 rounded-xl text-xs font-semibold transition-all"
+                                        style={{
+                                          background: active ? POS.success : POS.bgSurface,
+                                          color: active ? "#fff" : POS.textPrimary,
+                                          border: `2px solid ${active ? POS.success : POS.border}`,
+                                        }}>
+                                        {time}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* Packages */}
+                      {packages.length > 0 && (
+                        <div className="space-y-2">
+                          <p className="text-xs font-bold" style={{ color: POS.textSecondary }}>{t("selectPackage")}</p>
+                          <div className="grid grid-cols-2 gap-2">
+                            {packages.map((pkg, idx) => {
+                              const active = sel.packageIdx === idx;
+                              return (
+                                <button key={idx} type="button" onClick={() => setPackage(course.id, idx)}
+                                  className="py-3 rounded-xl text-center transition-all"
+                                  style={{
+                                    background: active ? POS.primary : POS.bgSurface,
+                                    color: active ? "#fff" : POS.textPrimary,
+                                    border: `2px solid ${active ? POS.primary : POS.border}`,
+                                  }}>
+                                  <div className="font-extrabold text-lg">{pkg.hours} {t("hrs")}</div>
+                                  <div className="text-sm font-bold" style={{ color: active ? "rgba(255,255,255,0.85)" : POS.success }}>
+                                    ฿{pkg.price.toLocaleString()}
+                                  </div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Book price checkbox */}
+                      {(course.book_price ?? 0) > 0 && (
+                        <label className="flex items-center gap-3 p-3 rounded-xl cursor-pointer"
+                          style={{ background: sel.includeBook ? POS.warningLight : POS.bgSurface, border: `2px solid ${sel.includeBook ? POS.warning : POS.border}` }}>
+                          <input type="checkbox" checked={sel.includeBook}
+                            onChange={() => setSelections(prev => ({
+                              ...prev, [course.id]: { ...prev[course.id], includeBook: !prev[course.id].includeBook }
+                            }))}
+                            className="w-5 h-5 rounded accent-amber-500" />
+                          <div className="flex-1">
+                            <span className="text-sm font-bold" style={{ color: POS.textPrimary }}>{t("includeBook")}</span>
+                          </div>
+                          <span className="text-sm font-extrabold" style={{ color: "#B45309" }}>฿{course.book_price.toLocaleString()}</span>
+                        </label>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </motion.div>
         )}
 
-        {/* STEP 3: Package (Hours) */}
+        {/* STEP 3: Review + Receipt + Submit */}
         {step === 3 && (
           <motion.div key="s3" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }}
             className="bg-white rounded-2xl p-5 border space-y-4" style={{ borderColor: POS.borderPurple, boxShadow: POS.shadowMd }}>
-            <h2 className="text-lg font-bold" style={{ color: POS.primary }}>{t("selectPackage")}</h2>
-            <p className="text-sm" style={{ color: POS.textSecondary }}>
-              {t("howManyHours", { course: course?.name || "" })}
-            </p>
-            <div className="grid grid-cols-3 gap-3">
-              {[10, 20, 30].map(h => (
-                <motion.button key={h} type="button" whileTap={{ scale: 0.95 }}
-                  onClick={() => setHours(h)}
-                  className="py-6 rounded-2xl text-center font-extrabold text-xl transition-all"
-                  style={{
-                    background: hours === h ? POS.primary : POS.bgSurface,
-                    color: hours === h ? "#fff" : POS.primary,
-                    border: `2px solid ${hours === h ? POS.primary : POS.border}`,
-                    minHeight: 100,
-                  }}>
-                  +{h}
-                  <span className="block text-xs font-semibold mt-1">{t("hrs")}</span>
-                </motion.button>
-              ))}
-            </div>
-            <div className="flex items-center gap-3 pt-2">
-              <span className="text-sm font-semibold" style={{ color: POS.textSecondary }}>{t("customLabel")}</span>
-              <input type="number" min={1} className="flex-1 rounded-xl border px-4 py-3"
-                style={{ borderColor: POS.border }} value={hours}
-                onChange={e => setHours(Number(e.target.value))} />
-            </div>
-          </motion.div>
-        )}
-
-        {/* STEP 4: Receipt + Submit */}
-        {step === 4 && (
-          <motion.div key="s4" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }}
-            className="bg-white rounded-2xl p-5 border space-y-4" style={{ borderColor: POS.borderPurple, boxShadow: POS.shadowMd }}>
             <h2 className="text-lg font-bold" style={{ color: POS.primary }}>{t("reviewSubmit")}</h2>
-            {/* Summary */}
-            <div className="rounded-xl p-4 space-y-2" style={{ background: POS.bgMain }}>
-              <div className="flex justify-between"><span style={{ color: POS.textSecondary }}>Student:</span><span className="font-bold">{nick} ({first} {last})</span></div>
-              <div className="flex justify-between"><span style={{ color: POS.textSecondary }}>Phone:</span><span className="font-bold">{phone}</span></div>
-              <div className="flex justify-between"><span style={{ color: POS.textSecondary }}>Course:</span><span className="font-bold">{course?.name}</span></div>
-              <div className="flex justify-between"><span style={{ color: POS.textSecondary }}>Schedule:</span><span className="font-bold">{Object.entries(selectedDays).map(([d, t]) => `${d}: ${t.join(", ")}`).join(" | ")}</span></div>
-              <div className="flex justify-between"><span style={{ color: POS.textSecondary }}>Hours:</span><span className="font-bold text-lg" style={{ color: POS.primary }}>{hours} hrs</span></div>
+
+            {/* Student summary */}
+            <div className="rounded-xl p-4 space-y-1" style={{ background: POS.bgMain }}>
+              <div className="flex justify-between text-sm"><span style={{ color: POS.textSecondary }}>{t("nickName")}:</span><span className="font-bold">{nick} ({first} {last})</span></div>
+              <div className="flex justify-between text-sm"><span style={{ color: POS.textSecondary }}>{t("phone")}:</span><span className="font-bold">{phone}</span></div>
+              {lineId && <div className="flex justify-between text-sm"><span style={{ color: POS.textSecondary }}>LINE:</span><span className="font-bold">{lineId}</span></div>}
             </div>
+
+            {/* Course summaries */}
+            {selectedCourseIds.map(cid => {
+              const c = courses.find(x => x.id === cid)!;
+              const sel = selections[cid];
+              const pkg = c.hour_packages?.[sel.packageIdx];
+              return (
+                <div key={cid} className="rounded-xl p-4 border" style={{ borderColor: POS.borderLight }}>
+                  <div className="font-bold" style={{ color: POS.primary }}>{c.name}</div>
+                  <div className="text-xs mt-1" style={{ color: POS.textMuted }}>
+                    {Object.entries(sel.days).map(([d, t]) => `${d}: ${t.join(", ")}`).join(" | ") || t("noSchedule")}
+                  </div>
+                  {pkg && (
+                    <div className="flex items-center gap-3 mt-1">
+                      <span className="text-sm font-bold" style={{ color: POS.primary }}>{pkg.hours} {t("hrs")}</span>
+                      <span className="text-sm font-bold" style={{ color: POS.success }}>฿{pkg.price.toLocaleString()}</span>
+                    </div>
+                  )}
+                  {sel.includeBook && c.book_price > 0 && (
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-xs font-bold" style={{ color: "#B45309" }}>+ {t("book")}: ฿{c.book_price.toLocaleString()}</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {/* Total */}
+            {totalPrice() > 0 && (
+              <div className="flex justify-between items-center px-4 py-3 rounded-xl" style={{ background: POS.successLight }}>
+                <span className="font-bold" style={{ color: POS.textPrimary }}>{t("total")}</span>
+                <span className="text-xl font-extrabold" style={{ color: POS.success }}>฿{totalPrice().toLocaleString()}</span>
+              </div>
+            )}
+
             {/* Receipt upload */}
             <div>
               <label className="text-xs font-semibold" style={{ color: POS.textSecondary }}>

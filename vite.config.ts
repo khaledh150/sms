@@ -7,5 +7,5 @@ export default defineConfig({
     react(),
     tailwindcssVite(), // No options
   ],
-  base: "/sms/", // Needed for GitHub Pages
+  base: "/",
 });

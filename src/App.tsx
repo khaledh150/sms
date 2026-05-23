@@ -1,6 +1,7 @@
 import "./i18n";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ToastProvider } from "./hooks/useToast";
 
 /* ---------- PUBLIC ---------- */
 import LoginPage from "./LoginPage";
@@ -23,12 +24,14 @@ import CoursesPage from "./CoursesPage";
 import SettingsPage from "./SettingsPage";
 import BillingPage from "./BillingPage";
 import ReportsPage from "./ReportsPage";
+import MessagingPage from "./MessagingPage";
 
 const queryClient = new QueryClient();
 
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
+      <ToastProvider>
       <BrowserRouter basename={import.meta.env.BASE_URL}>
         <Routes>
           {/* Public */}
@@ -57,6 +60,7 @@ export default function App() {
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/billing" element={<BillingPage />} />
             <Route path="/reports" element={<ReportsPage />} />
+            <Route path="/messaging" element={<MessagingPage />} />
 
             {/* Legacy redirects */}
             <Route path="/myschool/students" element={<Navigate to="/students" replace />} />
@@ -75,6 +79,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </BrowserRouter>
+      </ToastProvider>
     </QueryClientProvider>
   );
 }

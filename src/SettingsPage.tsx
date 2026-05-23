@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from "react";
+import { Dialog } from "@headlessui/react";
 import { supabase } from "./supabaseClient";
 import { useAuth } from "./AuthContext";
 import { PlusCircleIcon, XMarkIcon, PencilIcon, TrashIcon } from "@heroicons/react/24/solid";
 import { useTranslation } from "react-i18next";
+import { useToast } from "./hooks/useToast";
 import { POS } from "./theme";
 
 interface Profile {
@@ -15,6 +17,7 @@ interface Profile {
 export default function SettingsPage() {
   const { t } = useTranslation();
   const { user } = useAuth();
+  const { toast } = useToast();
   const isAdmin = user?.role === "admin";
 
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -28,6 +31,15 @@ export default function SettingsPage() {
   const [inviting, setInviting] = useState(false);
   const [editRow, setEditRow] = useState<Profile | null>(null);
   const [saving, setSaving] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Profile | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const [showCreateSchool, setShowCreateSchool] = useState(false);
+  const [schoolName, setSchoolName] = useState("");
+  const [schoolAdminEmail, setSchoolAdminEmail] = useState("");
+  const [schoolAdminPw, setSchoolAdminPw] = useState("");
+  const [schoolAdminName, setSchoolAdminName] = useState("");
+  const [creatingSchool, setCreatingSchool] = useState(false);
 
   useEffect(() => { refresh(); }, []);
 
@@ -41,17 +53,14 @@ export default function SettingsPage() {
 
   async function handleInvite(e: React.FormEvent) {
     e.preventDefault(); setInviting(true); setErr(null);
-    const { data: authRes, error: authErr } = await supabase.auth.admin.createUser({
-      email: inviteMail.trim().toLowerCase(), password: invitePw, email_confirm: true,
+    const { error } = await supabase.rpc("create_staff_user", {
+      p_email: inviteMail.trim().toLowerCase(),
+      p_password: invitePw,
+      p_full_name: inviteName.trim() || "",
+      p_role: inviteRole,
     });
-    if (authErr) { setErr(authErr.message); setInviting(false); return; }
-    const uid = authRes.user?.id;
-    if (!uid) { setErr(t("noUserIdError")); setInviting(false); return; }
-    const { error: profErr } = await supabase.from("profiles").insert([{
-      id: uid, email: inviteMail.trim().toLowerCase(), full_name: inviteName.trim() || null, role: inviteRole
-    }]);
-    if (profErr) setErr(profErr.message);
-    else { setInviteMail(""); setInviteName(""); setInvitePw(""); setInviteRole("staff"); refresh(); }
+    if (error) setErr(error.message);
+    else { setInviteMail(""); setInviteName(""); setInvitePw(""); setInviteRole("staff"); toast(t("userAdded"), "success"); refresh(); }
     setInviting(false);
   }
 
@@ -59,15 +68,35 @@ export default function SettingsPage() {
     if (!editRow) return;
     setSaving(true);
     const { error } = await supabase.from("profiles").update({ full_name: editRow.full_name, role: editRow.role }).eq("id", editRow.id);
-    if (error) alert(error.message);
-    else { setEditRow(null); refresh(); }
+    if (error) toast(error.message, "error");
+    else { setEditRow(null); toast(t("userUpdated"), "success"); refresh(); }
     setSaving(false);
   }
 
-  async function remove(p: Profile) {
-    if (p.role === "admin") return;
-    if (!confirm(t("confirmRemoveStaff"))) return;
-    await supabase.from("profiles").delete().eq("id", p.id);
+  async function handleCreateSchool(e: React.FormEvent) {
+    e.preventDefault(); setCreatingSchool(true); setErr(null);
+    const { error } = await supabase.rpc("create_school", {
+      p_school_name: schoolName.trim(),
+      p_admin_email: schoolAdminEmail.trim().toLowerCase(),
+      p_admin_password: schoolAdminPw,
+      p_admin_name: schoolAdminName.trim(),
+    });
+    if (error) setErr(error.message);
+    else {
+      setSchoolName(""); setSchoolAdminEmail(""); setSchoolAdminPw(""); setSchoolAdminName("");
+      setShowCreateSchool(false);
+      toast(t("schoolCreated"), "success");
+    }
+    setCreatingSchool(false);
+  }
+
+  async function remove() {
+    if (!deleteTarget || deleteTarget.role === "admin") return;
+    setDeleting(true);
+    await supabase.from("profiles").delete().eq("id", deleteTarget.id);
+    setDeleteTarget(null);
+    setDeleting(false);
+    toast(t("userDeleted"), "success");
     refresh();
   }
 
@@ -96,8 +125,11 @@ export default function SettingsPage() {
               className="border rounded-xl px-4 py-3" style={{ borderColor: POS.border }} />
             <input type="text" required placeholder={t("name")} value={inviteName} onChange={e => setInviteName(e.target.value)}
               className="border rounded-xl px-4 py-3" style={{ borderColor: POS.border }} />
-            <input type="password" required placeholder={t("tempPassword")} value={invitePw} onChange={e => setInvitePw(e.target.value)}
-              className="border rounded-xl px-4 py-3" style={{ borderColor: POS.border }} />
+            <div>
+              <input type="password" required placeholder={t("tempPassword")} value={invitePw} onChange={e => setInvitePw(e.target.value)}
+                className="border rounded-xl px-4 py-3 w-full" style={{ borderColor: POS.border }} />
+              <p className="text-xs mt-1" style={{ color: POS.textMuted }}>{t("minPasswordLength")}</p>
+            </div>
             <select value={inviteRole} onChange={e => setInviteRole(e.target.value as any)}
               className="border rounded-xl px-4 py-3" style={{ borderColor: POS.border }}>
               <option value="staff">{t("roleStaff")}</option>
@@ -148,7 +180,7 @@ export default function SettingsPage() {
                   <PencilIcon className="w-4 h-4" /> {t("edit")}
                 </button>
                 {isAdmin && p.role === "staff" && (
-                  <button onClick={() => remove(p)}
+                  <button onClick={() => setDeleteTarget(p)}
                     className="flex-1 flex items-center justify-center gap-1 py-2 rounded-xl border font-semibold text-sm"
                     style={{ borderColor: POS.danger + "44", color: POS.danger }}>
                     <TrashIcon className="w-4 h-4" /> {t("delete")}
@@ -195,6 +227,66 @@ export default function SettingsPage() {
           </div>
         </div>
       )}
+
+      {/* Create School Section */}
+      {isAdmin && (
+        <>
+          <div className="flex justify-between items-center mt-10 mb-4">
+            <h2 className="text-lg font-bold" style={{ color: POS.textPrimary }}>{t("createSchool")}</h2>
+            <button onClick={() => setShowCreateSchool(v => !v)}
+              className="flex items-center gap-2 px-4 py-3 rounded-xl text-white font-bold text-sm transition"
+              style={{ background: POS.info, minHeight: POS.touchComfortable }}>
+              {showCreateSchool ? <><XMarkIcon className="w-5 h-5" />{t("close")}</>
+                : <><PlusCircleIcon className="w-5 h-5" />{t("createSchool")}</>}
+            </button>
+          </div>
+          <p className="text-sm mb-4" style={{ color: POS.textMuted }}>{t("createSchoolDesc")}</p>
+          {showCreateSchool && (
+            <div className="bg-white rounded-2xl p-5 mb-6 border" style={{ borderColor: POS.borderPurple, boxShadow: POS.shadowMd }}>
+              <form onSubmit={handleCreateSchool} className="grid gap-3 sm:grid-cols-2">
+                <div className="sm:col-span-2">
+                  <input type="text" required placeholder={t("schoolName")} value={schoolName} onChange={e => setSchoolName(e.target.value)}
+                    className="border rounded-xl px-4 py-3 w-full" style={{ borderColor: POS.border }} />
+                </div>
+                <input type="text" required placeholder={t("schoolAdminName")} value={schoolAdminName} onChange={e => setSchoolAdminName(e.target.value)}
+                  className="border rounded-xl px-4 py-3" style={{ borderColor: POS.border }} />
+                <input type="email" required placeholder={t("schoolAdminEmail")} value={schoolAdminEmail} onChange={e => setSchoolAdminEmail(e.target.value)}
+                  className="border rounded-xl px-4 py-3" style={{ borderColor: POS.border }} />
+                <div>
+                  <input type="password" required placeholder={t("schoolAdminPassword")} value={schoolAdminPw} onChange={e => setSchoolAdminPw(e.target.value)}
+                    className="border rounded-xl px-4 py-3 w-full" style={{ borderColor: POS.border }} />
+                  <p className="text-xs mt-1" style={{ color: POS.textMuted }}>{t("minPasswordLength")}</p>
+                </div>
+                <div className="flex items-end">
+                  <button disabled={creatingSchool}
+                    className="w-full px-6 py-3 rounded-xl text-white font-bold disabled:opacity-50"
+                    style={{ background: POS.info }}>
+                    {creatingSchool ? t("loading") : t("createSchool")}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={!!deleteTarget} onClose={() => setDeleteTarget(null)} className="relative z-50">
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm" aria-hidden="true" />
+        <div className="fixed inset-0 flex items-center justify-center p-4">
+          <Dialog.Panel className="bg-white rounded-[2rem] p-8 max-w-sm w-full mx-4 shadow-2xl text-center">
+            <TrashIcon className="w-12 h-12 mx-auto mb-4" style={{ color: POS.danger }} />
+            <h2 className="text-xl font-bold mb-2" style={{ color: POS.textPrimary }}>{t("deleteConfirmTitle")}</h2>
+            <p className="text-sm mb-6" style={{ color: POS.textMuted }}>{t("confirmRemoveStaff")}</p>
+            <div className="flex gap-3">
+              <button onClick={() => setDeleteTarget(null)} className="flex-1 py-3 rounded-xl border font-bold"
+                style={{ borderColor: POS.border, color: POS.textSecondary }}>{t("cancel")}</button>
+              <button onClick={remove} disabled={deleting} className="flex-1 py-3 rounded-xl text-white font-bold disabled:opacity-50"
+                style={{ background: POS.danger }}>{deleting ? t("loading") : t("delete")}</button>
+            </div>
+          </Dialog.Panel>
+        </div>
+      </Dialog>
     </div>
   );
 }

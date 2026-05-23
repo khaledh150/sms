@@ -2,7 +2,7 @@
   "name": "Wonder Kids POS",
   "short_name": "WonderKids",
   "description": "School management POS for Wonder Kids",
-  "start_url": "/sms/",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#F8F9FE",
   "theme_color": "#6C5CE7",

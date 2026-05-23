@@ -21,15 +21,4 @@ i18n
     },
   });
 
-// Add this block to extend the window type
-declare global {
-  interface Window {
-    i18n: typeof i18n;
-  }
-}
-
-if (typeof window !== "undefined") {
-  window.i18n = i18n;
-}
-
 export default i18n;

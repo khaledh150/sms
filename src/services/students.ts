@@ -1,6 +1,6 @@
 // src/services/students.ts — Student + Enrollment queries (normalized)
 import { supabase } from "../supabaseClient";
-import { parseCourseLimit } from "../utils";
+
 
 export interface Student {
   id: string;
@@ -21,8 +21,8 @@ export interface Enrollment {
   student_id: string;
   course_id: string;
   purchased_hours: number;
-  weekday: string | null;
-  time_slot: string | null;
+  initial_used_hours: number;
+  schedule: Record<string, string[]>;
   status: string;
   created_at: string;
   cancelled_at: string | null;
@@ -34,8 +34,7 @@ export interface ExpectedStudent {
   enrollment_id: string;
   student_id: string;
   course_id: string;
-  weekday: string;
-  time_slot: string;
+  schedule: Record<string, string[]>;
   purchased_hours: number;
   first_name: string;
   last_name: string;
@@ -90,7 +89,7 @@ export async function fetchExpectedToday() {
   const { data, error } = await supabase
     .from("expected_students_today")
     .select("*")
-    .order("time_slot");
+    .order("course_name");
   if (error) throw error;
   return (data ?? []) as ExpectedStudent[];
 }
@@ -99,11 +98,46 @@ export async function fetchExpectedToday() {
 export async function fetchStudentsForCourse(courseId: string) {
   const { data, error } = await supabase
     .from("enrollments")
-    .select("id, student_id, purchased_hours, weekday, time_slot, students(id, first_name, last_name, nick_name, qr_code_url)")
+    .select("id, student_id, purchased_hours, schedule, students(id, first_name, last_name, nick_name, qr_code_url)")
     .eq("course_id", courseId)
     .eq("status", "active");
   if (error) throw error;
   return data ?? [];
+}
+
+export interface EnrolledStudent {
+  enrollment_id: string;
+  student_id: string;
+  course_id: string;
+  course_name: string;
+  purchased_hours: number;
+  initial_used_hours: number;
+  schedule: Record<string, string[]>;
+  first_name: string;
+  last_name: string;
+  nick_name: string | null;
+  qr_code_url: string | null;
+}
+
+export async function fetchAllEnrolledStudents() {
+  const { data, error } = await supabase
+    .from("enrollments")
+    .select("id, student_id, course_id, purchased_hours, initial_used_hours, schedule, students(id, first_name, last_name, nick_name, qr_code_url), courses(id, name)")
+    .eq("status", "active");
+  if (error) throw error;
+  return (data ?? []).map((r: any) => ({
+    enrollment_id: r.id,
+    student_id: r.student_id,
+    course_id: r.course_id,
+    course_name: r.courses?.name ?? "",
+    purchased_hours: r.purchased_hours ?? 0,
+    initial_used_hours: r.initial_used_hours ?? 0,
+    schedule: r.schedule ?? {},
+    first_name: r.students?.first_name ?? "",
+    last_name: r.students?.last_name ?? "",
+    nick_name: r.students?.nick_name ?? null,
+    qr_code_url: r.students?.qr_code_url ?? null,
+  })) as EnrolledStudent[];
 }
 
 // Delete a student

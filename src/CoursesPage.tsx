@@ -5,20 +5,23 @@ import { supabase } from "./supabaseClient";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
+import { Dialog } from "@headlessui/react";
 import { PlusIcon, PencilIcon, TrashIcon, XMarkIcon } from "@heroicons/react/24/solid";
 import { POS } from "./theme";
+import { useToast } from "./hooks/useToast";
 
 const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const HOURS: string[] = [];
 for (let h = 6; h < 23; ++h) HOURS.push(`${String(h).padStart(2, "0")}:00-${String(h + 1).padStart(2, "0")}:00`);
 
-type Course = { id?: string; name: string; weekdays: string[]; times: Record<string, string[]>; capacity: number };
+type HourPackage = { hours: number; price: number };
+type Course = { id?: string; name: string; weekdays: string[]; times: Record<string, string[]>; capacity: number; hour_packages: HourPackage[]; book_price: number };
 
 function useFetchCourses() {
   return useQuery<Course[]>({
     queryKey: ["courses_full"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("courses").select("id,name,weekdays,times,capacity").order("name");
+      const { data, error } = await supabase.from("courses").select("id,name,weekdays,times,capacity,hour_packages,book_price").order("name");
       if (error) throw error;
       return (data || []) as Course[];
     },
@@ -135,41 +138,33 @@ function CheckTab({ courses, courseId, setCourseId, students, loading }: {
 function ManageTab({ courses, isLoading }: { courses: Course[]; isLoading: boolean }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [editing, setEditing] = useState<Course | null>(null);
-  const [error, setError] = useState("");
+  const [, setError] = useState("");
+  const [confirmAction, setConfirmAction] = useState<{ action: () => Promise<void>; message: string } | null>(null);
 
   const saveMutation = useMutation<void, any, Course>({
     mutationFn: async (course) => {
-      const up = { name: course.name, weekdays: course.weekdays, times: course.times, capacity: course.capacity };
+      const up = { name: course.name, weekdays: course.weekdays, times: course.times, capacity: course.capacity, hour_packages: course.hour_packages || [], book_price: course.book_price || 0 };
       if (course.id) { const { error } = await supabase.from("courses").update(up).eq("id", course.id); if (error) throw error; }
       else { const { error } = await supabase.from("courses").insert([up]); if (error) throw error; }
     },
-    onSuccess: () => { setEditing(null); queryClient.invalidateQueries({ queryKey: ["courses_full"] }); queryClient.invalidateQueries({ queryKey: ["courses"] }); },
-    onError: (err: any) => setError(err.message),
+    onSuccess: () => { setEditing(null); queryClient.invalidateQueries({ queryKey: ["courses_full"] }); queryClient.invalidateQueries({ queryKey: ["courses"] }); toast(t("courseSaved"), "success"); },
+    onError: (err: any) => { setError(err.message); toast(err.message, "error"); },
   });
 
   const deleteMutation = useMutation<void, any, string>({
     mutationFn: async (id) => {
-      if (!confirm(t("deleteThisCourse"))) return;
       const { error } = await supabase.from("courses").delete().eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["courses_full"] }); queryClient.invalidateQueries({ queryKey: ["courses"] }); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["courses_full"] }); queryClient.invalidateQueries({ queryKey: ["courses"] }); toast(t("courseDeleted"), "success"); },
+    onError: (err: any) => toast(err.message, "error"),
   });
 
   function startEdit(course: Course | null) {
-    setEditing(course || { name: "", weekdays: [], times: {}, capacity: 0 });
+    setEditing(course || { name: "", weekdays: [], times: {}, capacity: 0, hour_packages: [], book_price: 0 });
     setError("");
-  }
-
-  function toggleDay(day: string) {
-    setEditing(c => {
-      if (!c) return c;
-      const days = c.weekdays.includes(day) ? c.weekdays.filter(d => d !== day) : [...c.weekdays, day];
-      const times = { ...c.times };
-      if (!days.includes(day)) delete times[day];
-      return { ...c, weekdays: days, times };
-    });
   }
 
   return (
@@ -192,12 +187,31 @@ function ManageTab({ courses, isLoading }: { courses: Course[]; isLoading: boole
                       {d}: {arr.join(", ")}
                     </div>
                   ))}
+                  {(c.hour_packages?.length > 0 || c.book_price > 0) && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {(c.hour_packages || []).map((pkg, i) => (
+                        <span key={i} className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold"
+                          style={{ background: `${POS.primary}15`, color: POS.primary }}>
+                          {pkg.hours}hrs — ฿{pkg.price?.toLocaleString()}
+                        </span>
+                      ))}
+                      {c.book_price > 0 && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold"
+                          style={{ background: POS.warningLight, color: "#B45309" }}>
+                          📕 ฿{c.book_price?.toLocaleString()}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => startEdit(c)} className="p-2 rounded-xl hover:bg-gray-100" style={{ minHeight: "auto" }}>
+                  <button onClick={() => startEdit(c)} aria-label={t("editCourse")} className="p-2 rounded-xl hover:bg-gray-100" style={{ minHeight: "auto" }}>
                     <PencilIcon className="w-4 h-4" style={{ color: POS.info }} />
                   </button>
-                  <button onClick={() => deleteMutation.mutate(c.id!)} className="p-2 rounded-xl hover:bg-red-50" style={{ minHeight: "auto" }}>
+                  <button onClick={() => setConfirmAction({
+                    message: t("deleteThisCourse"),
+                    action: async () => { deleteMutation.mutate(c.id!); },
+                  })} aria-label={t("deleteCourse")} className="p-2 rounded-xl hover:bg-red-50" style={{ minHeight: "auto" }}>
                     <TrashIcon className="w-4 h-4" style={{ color: POS.danger }} />
                   </button>
                 </div>
@@ -212,89 +226,233 @@ function ManageTab({ courses, isLoading }: { courses: Course[]; isLoading: boole
         </>
       )}
 
-      {/* Edit Modal */}
-      {editing && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.3)" }}
-          onClick={() => setEditing(null)}>
-          <div className="bg-white rounded-2xl p-6 w-full max-w-lg mx-4 max-h-[85vh] overflow-y-auto" style={{ boxShadow: POS.shadowXl }}
-            onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold" style={{ color: POS.primary }}>
-                {editing.id ? t("editCourse") : t("newCourse")}
-              </h3>
-              <button onClick={() => setEditing(null)} style={{ minHeight: "auto" }}>
-                <XMarkIcon className="w-6 h-6" style={{ color: POS.textMuted }} />
+      {/* Confirmation Dialog */}
+      <Dialog open={confirmAction !== null} onClose={() => setConfirmAction(null)} className="relative z-50">
+        <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
+        <div className="fixed inset-0 flex items-center justify-center p-4">
+          <Dialog.Panel className="bg-white rounded-2xl p-6 w-full max-w-sm mx-auto" style={{ boxShadow: POS.shadowXl }}>
+            <Dialog.Title className="text-lg font-bold mb-3" style={{ color: POS.textPrimary }}>
+              {t("confirm")}
+            </Dialog.Title>
+            <p className="text-sm mb-6" style={{ color: POS.textSecondary }}>
+              {confirmAction?.message}
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => setConfirmAction(null)}
+                className="flex-1 py-3 rounded-xl border font-bold"
+                style={{ borderColor: POS.border, color: POS.textSecondary }}>
+                {t("cancel")}
+              </button>
+              <button onClick={async () => {
+                if (confirmAction) {
+                  await confirmAction.action();
+                  setConfirmAction(null);
+                }
+              }}
+                className="flex-1 py-3 rounded-xl text-white font-bold"
+                style={{ background: POS.danger }}>
+                {t("confirm")}
               </button>
             </div>
+          </Dialog.Panel>
+        </div>
+      </Dialog>
 
-            <label className="block mb-3">
-              <span className="text-sm font-semibold" style={{ color: POS.textSecondary }}>{t("name")}</span>
-              <input className="w-full border rounded-xl px-4 py-3 mt-1" style={{ borderColor: POS.border }}
-                value={editing.name}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => setEditing(c => c ? { ...c, name: e.target.value } : c)} />
+      {/* Step-by-step Edit Modal */}
+      {editing && <CourseWizard course={editing} onSave={(c) => saveMutation.mutate(c)} onClose={() => setEditing(null)} saving={saveMutation.status === "pending"} />}
+    </div>
+  );
+}
+
+function CourseWizard({ course, onSave, onClose, saving }: { course: Course; onSave: (c: Course) => void; onClose: () => void; saving: boolean }) {
+  const { t } = useTranslation();
+  const [step, setStep] = useState(1);
+  const [data, setData] = useState<Course>({ ...course, hour_packages: course.hour_packages || [], book_price: course.book_price || 0 });
+  const [error, setError] = useState("");
+  const totalSteps = 3;
+
+  function toggleDay(day: string) {
+    setData(c => {
+      const days = c.weekdays.includes(day) ? c.weekdays.filter(d => d !== day) : [...c.weekdays, day];
+      const times = { ...c.times };
+      if (!days.includes(day)) delete times[day];
+      return { ...c, weekdays: days, times };
+    });
+  }
+
+  function nextStep() {
+    setError("");
+    if (step === 1 && !data.name.trim()) { setError(t("enterName")); return; }
+    if (step === 2 && data.weekdays.length === 0) { setError(t("pleaseSelectDay")); return; }
+    if (step < totalSteps) setStep(s => s + 1);
+    else {
+      const cleanPkgs = data.hour_packages.filter(p => p.hours > 0 && p.price > 0);
+      onSave({ ...data, hour_packages: cleanPkgs });
+    }
+  }
+
+  const stepLabels = [t("courseInfo"), t("schedule"), t("packagesAndPricing")];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.3)" }}
+      onClick={onClose}>
+      <div className="bg-white rounded-2xl p-6 w-full max-w-lg mx-4 max-h-[85vh] overflow-y-auto" style={{ boxShadow: POS.shadowXl }}
+        onClick={e => e.stopPropagation()}>
+        {/* Header with steps */}
+        <div className="flex justify-between items-center mb-2">
+          <h3 className="text-lg font-bold" style={{ color: POS.primary }}>
+            {data.id ? t("editCourse") : t("newCourse")}
+          </h3>
+          <button onClick={onClose} style={{ minHeight: "auto" }}>
+            <XMarkIcon className="w-6 h-6" style={{ color: POS.textMuted }} />
+          </button>
+        </div>
+
+        {/* Step indicator */}
+        <div className="flex items-center gap-2 mb-6">
+          {stepLabels.map((label, i) => (
+            <div key={i} className="flex-1">
+              <div className="h-1.5 rounded-full transition-all" style={{ background: i + 1 <= step ? POS.primary : POS.bgSurface }} />
+              <div className="text-[10px] font-bold mt-1 text-center" style={{ color: i + 1 <= step ? POS.primary : POS.textMuted }}>
+                {label}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Step 1: Name & Capacity */}
+        {step === 1 && (
+          <div className="space-y-4">
+            <label className="block">
+              <span className="text-sm font-semibold" style={{ color: POS.textSecondary }}>{t("name")} *</span>
+              <input className="w-full border rounded-xl px-4 py-3 mt-1 text-lg" style={{ borderColor: POS.border }}
+                value={data.name} autoFocus
+                onChange={(e: ChangeEvent<HTMLInputElement>) => { setData(c => ({ ...c, name: e.target.value })); setError(""); }} />
             </label>
-            <label className="block mb-3">
+            <label className="block">
               <span className="text-sm font-semibold" style={{ color: POS.textSecondary }}>{t("capacity")}</span>
               <input type="number" min={0} className="w-full border rounded-xl px-4 py-3 mt-1" style={{ borderColor: POS.border }}
-                value={editing.capacity || 0}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => setEditing(c => c ? { ...c, capacity: Number(e.target.value) } : c)} />
+                value={data.capacity || 0}
+                onChange={(e: ChangeEvent<HTMLInputElement>) => setData(c => ({ ...c, capacity: Number(e.target.value) }))} />
+              <span className="text-xs mt-1 block" style={{ color: POS.textMuted }}>0 = {t("unlimited") || "unlimited"}</span>
             </label>
+          </div>
+        )}
 
-            <div className="mb-3">
-              <span className="text-sm font-semibold" style={{ color: POS.textSecondary }}>{t("days")}</span>
+        {/* Step 2: Schedule */}
+        {step === 2 && (
+          <div className="space-y-4">
+            <div>
+              <span className="text-sm font-semibold" style={{ color: POS.textSecondary }}>{t("days")} *</span>
               <div className="flex flex-wrap gap-2 mt-2">
                 {WEEKDAYS.map(d => (
-                  <button key={d} type="button" onClick={() => toggleDay(d)}
-                    className="px-3 py-2 rounded-xl text-sm font-semibold transition"
+                  <button key={d} type="button" onClick={() => { toggleDay(d); setError(""); }}
+                    className="px-4 py-3 rounded-xl text-sm font-bold transition"
                     style={{
-                      background: editing.weekdays.includes(d) ? POS.primary : POS.bgSurface,
-                      color: editing.weekdays.includes(d) ? "#fff" : POS.primary,
+                      background: data.weekdays.includes(d) ? POS.primary : POS.bgSurface,
+                      color: data.weekdays.includes(d) ? "#fff" : POS.primary,
+                      border: `2px solid ${data.weekdays.includes(d) ? POS.primary : POS.border}`,
                     }}>
-                    {d.slice(0, 3)}
+                    {t(`short${d}`, d.slice(0, 3))}
                   </button>
                 ))}
               </div>
             </div>
 
-            {editing.weekdays.map(day => (
-              <div key={day} className="mb-3 ml-2">
-                <span className="text-xs font-bold" style={{ color: POS.textSecondary }}>{t("dayTimes", { day })}</span>
-                <div className="flex flex-wrap gap-2 mt-1">
-                  {(editing.times[day] || []).map((tt, i) => (
-                    <span key={i} className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold"
-                      style={{ background: POS.bgSurface, color: POS.primary }}>
-                      {tt}
-                      <button onClick={() => setEditing(c => c ? { ...c, times: { ...c.times, [day]: c.times[day].filter((_: string, idx: number) => idx !== i) } } : c)}
-                        className="ml-1 font-bold" style={{ color: POS.danger, minHeight: "auto" }}>x</button>
-                    </span>
-                  ))}
-                  <select className="border rounded-xl px-2 py-1 text-sm" style={{ borderColor: POS.border }} defaultValue=""
-                    onChange={(e: ChangeEvent<HTMLSelectElement>) => {
-                      if (e.target.value) {
-                        setEditing(c => c ? { ...c, times: { ...c.times, [day]: [...(c.times[day] || []), e.target.value] } } : c);
-                        e.target.value = "";
-                      }
-                    }}>
-                    <option value="">{t("addTime")}</option>
-                    {HOURS.filter(h => !(editing.times[day] || []).includes(h)).map(h => <option key={h}>{h}</option>)}
-                  </select>
+            {data.weekdays.map(day => (
+              <div key={day} className="rounded-xl p-3" style={{ background: POS.bgSurface, border: `1px solid ${POS.border}` }}>
+                <span className="text-xs font-bold block mb-2" style={{ color: POS.textSecondary }}>{day}</span>
+                <div className="flex flex-wrap gap-2">
+                  {HOURS.map(h => {
+                    const isOn = (data.times[day] || []).includes(h);
+                    return (
+                      <button key={h} type="button" onClick={() => {
+                        setData(c => {
+                          const curr = c.times[day] || [];
+                          const next = isOn ? curr.filter(t => t !== h) : [...curr, h];
+                          return { ...c, times: { ...c.times, [day]: next } };
+                        });
+                      }}
+                        className="px-3 py-1.5 rounded-lg text-xs font-bold transition"
+                        style={{ background: isOn ? POS.primary : "#fff", color: isOn ? "#fff" : POS.primary, border: `1px solid ${POS.primary}` }}>
+                        {h}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             ))}
-
-            {error && <p className="text-sm mb-2" style={{ color: POS.danger }}>{error}</p>}
-
-            <div className="flex gap-3 mt-4">
-              <button onClick={() => setEditing(null)} className="flex-1 py-3 rounded-xl border font-bold"
-                style={{ borderColor: POS.border, color: POS.textSecondary }}>{t("cancel")}</button>
-              <button onClick={() => { if (!editing.name) { setError(t("enterName")); return; } saveMutation.mutate(editing); }}
-                disabled={saveMutation.status === "pending"}
-                className="flex-1 py-3 rounded-xl text-white font-bold disabled:opacity-50"
-                style={{ background: POS.success }}>{t("save")}</button>
-            </div>
           </div>
+        )}
+
+        {/* Step 3: Packages & Pricing */}
+        {step === 3 && (
+          <div className="space-y-4">
+            <div>
+              <span className="text-sm font-semibold" style={{ color: POS.textSecondary }}>{t("hourPackages")}</span>
+              <div className="space-y-2 mt-2">
+                {(data.hour_packages || []).map((pkg, i) => (
+                  <div key={i} className="flex items-center gap-2 p-3 rounded-xl" style={{ background: POS.bgSurface }}>
+                    <div className="flex-1 flex items-center gap-2">
+                      <input type="number" min={1} placeholder={t("hours")} className="w-20 border rounded-lg px-3 py-2 text-sm font-bold" style={{ borderColor: POS.border }}
+                        value={pkg.hours || ""} onChange={(e: ChangeEvent<HTMLInputElement>) => setData(c => {
+                          const pkgs = [...(c.hour_packages || [])];
+                          pkgs[i] = { ...pkgs[i], hours: Number(e.target.value) };
+                          return { ...c, hour_packages: pkgs };
+                        })} />
+                      <span className="text-xs font-bold" style={{ color: POS.textMuted }}>{t("hrs")}</span>
+                      <span className="text-lg" style={{ color: POS.textMuted }}>—</span>
+                      <span className="text-sm font-bold" style={{ color: POS.textMuted }}>฿</span>
+                      <input type="number" min={0} placeholder={t("price")} className="w-28 border rounded-lg px-3 py-2 text-sm font-bold" style={{ borderColor: POS.border }}
+                        value={pkg.price || ""} onChange={(e: ChangeEvent<HTMLInputElement>) => setData(c => {
+                          const pkgs = [...(c.hour_packages || [])];
+                          pkgs[i] = { ...pkgs[i], price: Number(e.target.value) };
+                          return { ...c, hour_packages: pkgs };
+                        })} />
+                    </div>
+                    <button onClick={() => setData(c => ({ ...c, hour_packages: (c.hour_packages || []).filter((_, idx) => idx !== i) }))}
+                      className="p-1.5 rounded-lg hover:bg-red-50" style={{ color: POS.danger, minHeight: "auto" }}>
+                      <TrashIcon className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+                <button type="button" onClick={() => setData(c => ({ ...c, hour_packages: [...(c.hour_packages || []), { hours: 0, price: 0 }] }))}
+                  className="w-full flex items-center justify-center gap-1 px-3 py-3 rounded-xl text-sm font-bold"
+                  style={{ background: POS.bgSurface, color: POS.primary, border: `2px dashed ${POS.primary}` }}>
+                  <PlusIcon className="w-5 h-5" /> {t("addPackage")}
+                </button>
+              </div>
+            </div>
+
+            <label className="block">
+              <span className="text-sm font-semibold" style={{ color: POS.textSecondary }}>{t("bookPrice")} (฿)</span>
+              <input type="number" min={0} className="w-full border rounded-xl px-4 py-3 mt-1" style={{ borderColor: POS.border }}
+                value={data.book_price || ""}
+                placeholder="0"
+                onChange={(e: ChangeEvent<HTMLInputElement>) => setData(c => ({ ...c, book_price: Number(e.target.value) || 0 }))} />
+              <span className="text-xs mt-1 block" style={{ color: POS.textMuted }}>{t("bookPriceHint")}</span>
+            </label>
+          </div>
+        )}
+
+        {error && <p className="text-sm mt-3 px-3 py-2 rounded-xl font-bold" style={{ color: POS.danger, background: POS.dangerLight }}>{error}</p>}
+
+        {/* Navigation */}
+        <div className="flex gap-3 mt-6">
+          {step > 1 ? (
+            <button onClick={() => setStep(s => s - 1)} className="flex-1 py-3 rounded-xl border font-bold"
+              style={{ borderColor: POS.border, color: POS.textSecondary }}>{t("back")}</button>
+          ) : (
+            <button onClick={onClose} className="flex-1 py-3 rounded-xl border font-bold"
+              style={{ borderColor: POS.border, color: POS.textSecondary }}>{t("cancel")}</button>
+          )}
+          <button onClick={nextStep} disabled={saving}
+            className="flex-1 py-3 rounded-xl text-white font-bold disabled:opacity-50"
+            style={{ background: step === totalSteps ? POS.success : POS.primary }}>
+            {step === totalSteps ? (saving ? t("loading") : t("save")) : t("next")}
+          </button>
         </div>
-      )}
+      </div>
     </div>
   );
 }

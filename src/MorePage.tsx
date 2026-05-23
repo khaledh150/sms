@@ -7,6 +7,7 @@ import {
   Cog6ToothIcon,
   ArrowRightOnRectangleIcon,
   GlobeAltIcon,
+  ChatBubbleLeftRightIcon,
 } from "@heroicons/react/24/solid";
 import { supabase } from "./supabaseClient";
 import { useAuth } from "./AuthContext";
@@ -24,6 +25,7 @@ export default function MorePage() {
     { label: t("courses"), icon: <BookOpenIcon className="w-6 h-6" />, path: "/courses", color: POS.primary },
     { label: t("reports"), icon: <ChartBarIcon className="w-6 h-6" />, path: "/reports", color: POS.info },
     { label: t("billing"), icon: <CurrencyDollarIcon className="w-6 h-6" />, path: "/billing", color: POS.warning },
+    { label: t("lineOa"), icon: <ChatBubbleLeftRightIcon className="w-6 h-6" />, path: "/messaging", color: "#06C755" },
     ...(isAdmin ? [{ label: t("settings"), icon: <Cog6ToothIcon className="w-6 h-6" />, path: "/settings", color: POS.textSecondary }] : []),
   ];
 

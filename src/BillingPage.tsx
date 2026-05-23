@@ -1,16 +1,19 @@
 import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
+import { Dialog } from "@headlessui/react";
 import {
   CurrencyDollarIcon,
   ArrowTrendingUpIcon,
   ArrowTrendingDownIcon,
   PlusIcon,
 } from "@heroicons/react/24/solid";
+import { TrashIcon } from "@heroicons/react/24/outline";
 import { supabase } from "./supabaseClient";
 import { useAuth } from "./AuthContext";
 import { POS } from "./theme";
 import { useTranslation } from "react-i18next";
+import { useToast } from "./hooks/useToast";
 
 interface Payment {
   id: string;
@@ -77,30 +80,103 @@ function useMonthlySummary() {
 export default function BillingPage() {
   const { t } = useTranslation();
   const { user } = useAuth();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [tab, setTab] = useState<"overview" | "income" | "expenses">("overview");
-  const { data: payments = [] } = usePayments();
-  const { data: expenses = [] } = useExpenses();
-  const { data: summaries = [] } = useMonthlySummary();
+  const { data: payments = [], error: paymentsError } = usePayments();
+  const { data: expenses = [], error: expensesError } = useExpenses();
+  const { data: summaries = [], error: summariesError } = useMonthlySummary();
 
   const [addExpenseOpen, setAddExpenseOpen] = useState(false);
   const [expCategory, setExpCategory] = useState("supplies");
   const [expAmount, setExpAmount] = useState("");
   const [expDesc, setExpDesc] = useState("");
 
-  const totalIncome = useMemo(() => payments.reduce((s, p) => s + Number(p.amount), 0), [payments]);
-  const totalExpenses = useMemo(() => expenses.reduce((s, e) => s + Number(e.amount), 0), [expenses]);
+  // Expense deletion state
+  const [deleteExpense, setDeleteExpense] = useState<Expense | null>(null);
+  const [deletingExpense, setDeletingExpense] = useState(false);
+
+  // Payment recording state
+  const [addPaymentOpen, setAddPaymentOpen] = useState(false);
+  const [payAmount, setPayAmount] = useState("");
+  const [payCurrency, setPayCurrency] = useState("THB");
+  const [payMethod, setPayMethod] = useState("cash");
+  const [payNote, setPayNote] = useState("");
+  const [payFile, setPayFile] = useState<File | null>(null);
+
+  // Date range filter state
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+
+  // Filtered data
+  const filteredPayments = useMemo(() => {
+    let result = payments;
+    if (dateFrom) result = result.filter(p => p.received_at >= dateFrom);
+    if (dateTo) result = result.filter(p => p.received_at <= dateTo + "T23:59:59");
+    return result;
+  }, [payments, dateFrom, dateTo]);
+
+  const filteredExpenses = useMemo(() => {
+    let result = expenses;
+    if (dateFrom) result = result.filter(e => e.date >= dateFrom);
+    if (dateTo) result = result.filter(e => e.date <= dateTo);
+    return result;
+  }, [expenses, dateFrom, dateTo]);
+
+  const totalIncome = useMemo(() => filteredPayments.reduce((s, p) => s + Number(p.amount), 0), [filteredPayments]);
+  const totalExpenses = useMemo(() => filteredExpenses.reduce((s, e) => s + Number(e.amount), 0), [filteredExpenses]);
 
   async function handleAddExpense() {
     if (!expAmount || !user?.id) return;
-    await supabase.from("expenses").insert([{
+    const { error } = await supabase.from("expenses").insert([{
       category: expCategory,
       amount: Number(expAmount),
       description: expDesc || null,
       created_by: user.id,
     }]);
+    if (error) {
+      toast(error.message, "error");
+      return;
+    }
+    toast(t("expenseAdded"), "success");
     setAddExpenseOpen(false);
     setExpAmount("");
     setExpDesc("");
+    queryClient.invalidateQueries({ queryKey: ["expenses"] });
+  }
+
+  async function handleDeleteExpense() {
+    if (!deleteExpense) return;
+    setDeletingExpense(true);
+    const { error } = await supabase.from("expenses").delete().eq("id", deleteExpense.id);
+    if (error) toast(error.message, "error");
+    else { toast(t("expenseDeleted"), "success"); queryClient.invalidateQueries({ queryKey: ["expenses"] }); }
+    setDeleteExpense(null);
+    setDeletingExpense(false);
+  }
+
+  async function handleAddPayment() {
+    if (!payAmount || !user?.id) return;
+    let receiptUrl = null;
+    if (payFile) {
+      const fn = `${Date.now()}-${payFile.name}`;
+      const { data: u, error: ue } = await supabase.storage.from("receipts").upload(fn, payFile);
+      if (ue) { toast(t("uploadFailed", { message: ue.message }), "error"); return; }
+      const { data: pu } = supabase.storage.from("receipts").getPublicUrl(u.path);
+      receiptUrl = pu.publicUrl;
+    }
+    const { error } = await supabase.from("payments").insert([{
+      amount: Number(payAmount),
+      currency: payCurrency,
+      method: payMethod,
+      note: payNote || null,
+      receipt_url: receiptUrl,
+    }]);
+    if (error) { toast(error.message, "error"); return; }
+    toast(t("paymentRecorded"), "success");
+    setAddPaymentOpen(false);
+    setPayAmount(""); setPayNote(""); setPayFile(null);
+    queryClient.invalidateQueries({ queryKey: ["payments"] });
   }
 
   return (
@@ -135,6 +211,23 @@ export default function BillingPage() {
         </div>
       </div>
 
+      {/* Date Range Filters */}
+      <div className="flex items-center gap-2 mb-4 bg-white rounded-xl p-3 border" style={{ borderColor: POS.borderLight }}>
+        <label className="text-xs font-semibold" style={{ color: POS.textSecondary }}>{t("dateFrom")}</label>
+        <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+          className="rounded-lg border px-2 py-1.5 text-sm flex-1" style={{ borderColor: POS.border }} />
+        <label className="text-xs font-semibold" style={{ color: POS.textSecondary }}>{t("dateTo")}</label>
+        <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+          className="rounded-lg border px-2 py-1.5 text-sm flex-1" style={{ borderColor: POS.border }} />
+        {(dateFrom || dateTo) && (
+          <button onClick={() => { setDateFrom(""); setDateTo(""); }}
+            className="text-xs font-bold px-3 py-1.5 rounded-lg"
+            style={{ background: POS.bgSurface, color: POS.primary }}>
+            {t("clearFilter")}
+          </button>
+        )}
+      </div>
+
       {/* Tabs */}
       <div className="flex gap-2 mb-4">
         {(["overview", "income", "expenses"] as const).map(key => (
@@ -154,7 +247,9 @@ export default function BillingPage() {
       {tab === "overview" && (
         <div className="space-y-3">
           <h3 className="font-bold" style={{ color: POS.textPrimary }}>{t("monthlySummary")}</h3>
-          {summaries.length === 0 ? (
+          {summariesError ? (
+            <p className="text-center py-8" style={{ color: POS.danger }}>{t("errorLoadingData")}</p>
+          ) : summaries.length === 0 ? (
             <p style={{ color: POS.textMuted }}>{t("noMonthlyData")}</p>
           ) : summaries.map(s => (
             <div key={s.id} className="bg-white rounded-xl p-4 flex items-center justify-between border"
@@ -177,9 +272,55 @@ export default function BillingPage() {
       {/* Income Tab */}
       {tab === "income" && (
         <div className="space-y-2">
-          {payments.length === 0 ? (
+          <button onClick={() => setAddPaymentOpen(true)}
+            aria-label={t("recordPayment")}
+            className="flex items-center gap-2 px-4 py-3 rounded-xl text-white font-bold text-sm"
+            style={{ background: POS.primary }}>
+            <PlusIcon className="w-5 h-5" /> {t("recordPayment")}
+          </button>
+
+          {addPaymentOpen && (
+            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+              className="bg-white rounded-2xl p-4 border space-y-3"
+              style={{ borderColor: POS.borderPurple, boxShadow: POS.shadowMd }}>
+              <div className="grid grid-cols-2 gap-3">
+                <input type="number" placeholder={t("amount")} value={payAmount}
+                  onChange={e => setPayAmount(e.target.value)}
+                  className="rounded-xl border px-3 py-3" style={{ borderColor: POS.border }} />
+                <input type="text" placeholder={t("currency")} value={payCurrency}
+                  onChange={e => setPayCurrency(e.target.value)}
+                  className="rounded-xl border px-3 py-3" style={{ borderColor: POS.border }} />
+              </div>
+              <select value={payMethod} onChange={e => setPayMethod(e.target.value)}
+                className="w-full rounded-xl border px-3 py-3" style={{ borderColor: POS.border }}>
+                <option value="cash">{t("cash")}</option>
+                <option value="transfer">{t("transfer")}</option>
+                <option value="promptpay">{t("promptpay")}</option>
+              </select>
+              <input type="text" placeholder={t("note")} value={payNote}
+                onChange={e => setPayNote(e.target.value)}
+                className="w-full rounded-xl border px-3 py-3" style={{ borderColor: POS.border }} />
+              <input type="file" accept="image/*,application/pdf"
+                onChange={e => setPayFile(e.target.files?.[0] ?? null)}
+                className="w-full text-sm" />
+              <div className="flex gap-2">
+                <button onClick={() => { setAddPaymentOpen(false); setPayAmount(""); setPayNote(""); setPayFile(null); }}
+                  aria-label={t("cancel")}
+                  className="flex-1 py-3 rounded-xl border font-bold"
+                  style={{ borderColor: POS.border, color: POS.textSecondary }}>{t("cancel")}</button>
+                <button onClick={handleAddPayment}
+                  aria-label={t("save")}
+                  className="flex-1 py-3 rounded-xl text-white font-bold"
+                  style={{ background: POS.success }}>{t("save")}</button>
+              </div>
+            </motion.div>
+          )}
+
+          {paymentsError ? (
+            <p className="text-center py-8" style={{ color: POS.danger }}>{t("errorLoadingData")}</p>
+          ) : filteredPayments.length === 0 ? (
             <p className="text-center py-8" style={{ color: POS.textMuted }}>{t("noPaymentsRecorded")}</p>
-          ) : payments.map(p => (
+          ) : filteredPayments.map(p => (
             <div key={p.id} className="bg-white rounded-xl p-3 flex items-center gap-3 border"
               style={{ borderColor: POS.borderLight }}>
               <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: POS.successLight }}>
@@ -195,6 +336,7 @@ export default function BillingPage() {
               </div>
               {p.receipt_url && (
                 <button onClick={() => window.open(p.receipt_url!, "_blank")}
+                  aria-label={t("receipt")}
                   className="text-xs font-bold px-2 py-1 rounded-lg"
                   style={{ background: POS.bgSurface, color: POS.primary }}>
                   {t("receipt")}
@@ -209,14 +351,17 @@ export default function BillingPage() {
       {tab === "expenses" && (
         <div className="space-y-3">
           <button onClick={() => setAddExpenseOpen(true)}
+            aria-label={t("addExpense")}
             className="flex items-center gap-2 px-4 py-3 rounded-xl text-white font-bold text-sm"
             style={{ background: POS.primary }}>
             <PlusIcon className="w-5 h-5" /> {t("addExpense")}
           </button>
 
-          {expenses.length === 0 ? (
+          {expensesError ? (
+            <p className="text-center py-8" style={{ color: POS.danger }}>{t("errorLoadingData")}</p>
+          ) : filteredExpenses.length === 0 ? (
             <p className="text-center py-8" style={{ color: POS.textMuted }}>{t("noExpensesRecorded")}</p>
-          ) : expenses.map(e => (
+          ) : filteredExpenses.map(e => (
             <div key={e.id} className="bg-white rounded-xl p-3 flex items-center gap-3 border"
               style={{ borderColor: POS.borderLight }}>
               <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: POS.dangerLight }}>
@@ -231,6 +376,12 @@ export default function BillingPage() {
                   {e.description && ` | ${e.description}`}
                 </div>
               </div>
+              <button onClick={() => setDeleteExpense(e)}
+                aria-label={t("delete")}
+                className="p-2 rounded-lg hover:bg-red-50 transition-colors"
+                style={{ color: POS.danger }}>
+                <TrashIcon className="w-4 h-4" />
+              </button>
             </div>
           ))}
 
@@ -257,9 +408,11 @@ export default function BillingPage() {
                 className="w-full rounded-xl border px-3 py-3" style={{ borderColor: POS.border }} />
               <div className="flex gap-2">
                 <button onClick={() => setAddExpenseOpen(false)}
+                  aria-label={t("cancel")}
                   className="flex-1 py-3 rounded-xl border font-bold"
                   style={{ borderColor: POS.border, color: POS.textSecondary }}>{t("cancel")}</button>
                 <button onClick={handleAddExpense}
+                  aria-label={t("save")}
                   className="flex-1 py-3 rounded-xl text-white font-bold"
                   style={{ background: POS.success }}>{t("save")}</button>
               </div>
@@ -267,6 +420,39 @@ export default function BillingPage() {
           )}
         </div>
       )}
+
+      {/* Delete Expense Confirmation Dialog */}
+      <Dialog open={!!deleteExpense} onClose={() => setDeleteExpense(null)} className="relative z-50">
+        <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
+        <div className="fixed inset-0 flex items-center justify-center p-4">
+          <Dialog.Panel className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-4"
+            style={{ boxShadow: POS.shadowLg }}>
+            <Dialog.Title className="text-lg font-bold" style={{ color: POS.textPrimary }}>
+              {t("confirmDelete")}
+            </Dialog.Title>
+            <p className="text-sm" style={{ color: POS.textSecondary }}>
+              {t("confirmDeleteExpense")}
+            </p>
+            {deleteExpense && (
+              <div className="text-sm font-semibold" style={{ color: POS.danger }}>
+                {Number(deleteExpense.amount).toLocaleString()} THB — {deleteExpense.category}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <button onClick={() => setDeleteExpense(null)}
+                className="flex-1 py-3 rounded-xl border font-bold"
+                style={{ borderColor: POS.border, color: POS.textSecondary }}>
+                {t("cancel")}
+              </button>
+              <button onClick={handleDeleteExpense} disabled={deletingExpense}
+                className="flex-1 py-3 rounded-xl text-white font-bold"
+                style={{ background: POS.danger, opacity: deletingExpense ? 0.6 : 1 }}>
+                {deletingExpense ? "..." : t("delete")}
+              </button>
+            </div>
+          </Dialog.Panel>
+        </div>
+      </Dialog>
     </div>
   );
 }

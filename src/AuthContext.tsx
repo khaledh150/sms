@@ -32,17 +32,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session?.user) {
-        loadProfile({
-          id: data.session.user.id,
-          email: data.session.user.email ?? null,
-        });
-      } else {
-        setLoading(false);
-      }
-    });
-    const { data: sub } = supabase.auth.onAuthStateChange((_, session) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
         loadProfile({
           id: session.user.id,

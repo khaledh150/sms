@@ -102,6 +102,17 @@ export async function rejectChanges(ids: string[]) {
   if (error) throw error;
 }
 
+export async function fetchPendingChangesForStudent(studentId: string) {
+  const { data, error } = await supabase
+    .from("application_changes")
+    .select("*")
+    .eq("student_id", studentId)
+    .eq("status", "pending")
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as ApplicationChange[];
+}
+
 // Submit a new application
 export async function submitApplication(data: {
   nick_name: string;
