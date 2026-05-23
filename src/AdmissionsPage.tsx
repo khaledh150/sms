@@ -56,7 +56,13 @@ export default function AdmissionsPage(_props: { publicMode?: boolean }) {
         delete next[courseId];
         return next;
       }
-      return { ...prev, [courseId]: { days: {}, packageIdx: 0, includeBook: false } };
+      const c = courses.find(x => x.id === courseId);
+      const hasTimes = c && Object.values(c.times || {}).some((arr: any) => arr.length > 0);
+      const autoDays: Record<string, string[]> = {};
+      if (!hasTimes && c?.weekdays) {
+        c.weekdays.forEach(d => { autoDays[d] = []; });
+      }
+      return { ...prev, [courseId]: { days: autoDays, packageIdx: 0, includeBook: false } };
     });
   }
 
@@ -97,8 +103,9 @@ export default function AdmissionsPage(_props: { publicMode?: boolean }) {
       if (selectedCourseIds.length === 0) { setError(t("pleaseSelectCourseAdm")); return false; }
       for (const cid of selectedCourseIds) {
         const sel = selections[cid];
-        if (Object.keys(sel.days).length === 0) {
-          const c = courses.find(x => x.id === cid);
+        const c = courses.find(x => x.id === cid);
+        const hasTimes = c && Object.values(c.times || {}).some((arr: any) => arr.length > 0);
+        if (hasTimes && Object.keys(sel.days).length === 0) {
           setError(t("pleaseSelectDayTime") + (c ? ` (${c.name})` : ""));
           return false;
         }
@@ -153,6 +160,12 @@ export default function AdmissionsPage(_props: { publicMode?: boolean }) {
           };
         });
         if (enrollRows.length) await supabase.from("enrollments").insert(enrollRows);
+        await supabase.from("notifications").insert([{
+          type: "new_application",
+          student_id: newStudent.id,
+          payload: { name: nick, first_name: first, student_name: nick },
+          read: false,
+        }]);
       }
       setSubmitted(true);
     } else {
@@ -242,7 +255,7 @@ export default function AdmissionsPage(_props: { publicMode?: boolean }) {
             <h3 className="text-base font-bold pt-2" style={{ color: POS.primary }}>{t("guardian")}</h3>
             <div>
               <label className="text-xs font-semibold" style={{ color: POS.textSecondary }}>{t("phone")} *</label>
-              <input type="tel" className="w-full border rounded-xl px-4 py-3 mt-1 text-base" style={{ borderColor: POS.border, minHeight: POS.touchComfortable }}
+              <input type="tel" inputMode="numeric" className="w-full border rounded-xl px-4 py-3 mt-1 text-base" style={{ borderColor: POS.border, minHeight: POS.touchComfortable }}
                 value={phone} onChange={e => setPhone(e.target.value)} placeholder="08X-XXX-XXXX" />
             </div>
             <div>
@@ -388,7 +401,7 @@ export default function AdmissionsPage(_props: { publicMode?: boolean }) {
                 <div key={cid} className="rounded-xl p-4 border" style={{ borderColor: POS.borderLight }}>
                   <div className="font-bold" style={{ color: POS.primary }}>{c.name}</div>
                   <div className="text-xs mt-1" style={{ color: POS.textMuted }}>
-                    {Object.entries(sel.days).map(([d, t]) => `${d}: ${t.join(", ")}`).join(" | ") || t("noSchedule")}
+                    {Object.entries(sel.days).map(([d, times]) => times.length > 0 ? `${d}: ${times.join(", ")}` : d).join(" | ") || t("noSchedule")}
                   </div>
                   {pkg && (
                     <div className="flex items-center gap-3 mt-1">

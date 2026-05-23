@@ -241,7 +241,7 @@ export default function Layout() {
           {/* Center: Date on mobile, Clock+Date on desktop */}
           <div className="flex flex-col items-center mx-auto">
             {/* Mobile: just date */}
-            <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#7C8DB0] md:hidden">
+            <span className="text-xs font-extrabold uppercase tracking-widest text-[#7C8DB0] md:hidden">
               {time.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}
             </span>
             {/* Desktop: time + date */}
@@ -377,10 +377,6 @@ export default function Layout() {
               onClick={e => e.stopPropagation()}>
               <img src={profileUrl} alt="Profile" className="w-32 h-32 rounded-[2rem] mb-6 shadow-xl object-cover border-4 border-white" />
               <input ref={fileInput as React.RefObject<HTMLInputElement>} type="file" accept="image/*" className="mb-6 text-sm font-bold text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" onChange={handleUpload} disabled={uploading} />
-
-              <button onClick={() => nav("/login")} className="w-full btn-gummy-sm py-4 rounded-[1.5rem] font-bold text-[15px] mb-3 text-red-500 bg-red-50" disabled={uploading}>
-                {t("signOut")}
-              </button>
 
               <button onClick={() => setShowProfileModal(false)} className="btn-gummy px-8 py-4 w-full rounded-[1.5rem] text-white font-bouncy text-xl shadow-lg" style={{ background: POS.primaryGradient }} disabled={uploading}>
                 {t("close")}

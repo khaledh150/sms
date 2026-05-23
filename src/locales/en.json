@@ -506,5 +506,7 @@
   "overlimitConfirm": "{{name}} has used {{used}}/{{purchased}} hours. Continue check-in?",
   "seeMore": "See more",
   "showLess": "Show less",
-  "newNotification": "New notification"
+  "newNotification": "New notification",
+  "courseSaved": "Course saved successfully!",
+  "confirm": "Confirm"
 }

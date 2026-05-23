@@ -505,5 +505,7 @@
   "overlimitConfirm": "{{name}} ใช้ไปแล้ว {{used}}/{{purchased}} ชั่วโมง ต้องการเช็คอินต่อหรือไม่?",
   "seeMore": "ดูเพิ่มเติม",
   "showLess": "แสดงน้อยลง",
-  "newNotification": "การแจ้งเตือนใหม่"
+  "newNotification": "การแจ้งเตือนใหม่",
+  "courseSaved": "บันทึกหลักสูตรเรียบร้อย!",
+  "confirm": "ยืนยัน"
 }

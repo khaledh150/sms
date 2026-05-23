@@ -257,48 +257,52 @@ export default function StudentProfilePage() {
       <div className="grid grid-cols-2 gap-3">
         {/* QR Code */}
         {(student as any).qr_code_url && (
-          <div className="bg-white rounded-2xl p-3 border flex flex-col items-center gap-2" style={{ borderColor: POS.borderLight, boxShadow: POS.shadowSm }}>
-            <img src={(student as any).qr_code_url} alt="QR Code" className="w-20 h-20 rounded-lg" />
-            <div className="font-bold text-xs" style={{ color: POS.textPrimary }}>{t("studentQrCode")}</div>
+          <div className="bg-white rounded-2xl p-4 border flex flex-col items-center justify-between" style={{ borderColor: POS.borderLight, boxShadow: POS.shadowSm }}>
+            <img src={(student as any).qr_code_url} alt="QR Code" className="w-24 h-24 rounded-lg mb-2" />
+            <div className="font-bold text-xs mb-2" style={{ color: POS.textPrimary }}>{t("studentQrCode")}</div>
             <div className="flex gap-2">
-              <a href={(student as any).qr_code_url} download className="px-2 py-1.5 rounded-lg text-[10px] font-bold"
-                style={{ background: POS.bgSurface, color: POS.primary }}>{t("download")}</a>
+              <a href={(student as any).qr_code_url} download className="w-9 h-9 rounded-lg flex items-center justify-center"
+                style={{ background: POS.bgSurface, color: POS.primary }} aria-label={t("download")}>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M10.75 2.75a.75.75 0 00-1.5 0v8.614L6.295 8.235a.75.75 0 10-1.09 1.03l4.25 4.5a.75.75 0 001.09 0l4.25-4.5a.75.75 0 00-1.09-1.03l-2.955 3.129V2.75z" /><path d="M3.5 12.75a.75.75 0 00-1.5 0v2.5A2.75 2.75 0 004.75 18h10.5A2.75 2.75 0 0018 15.25v-2.5a.75.75 0 00-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5z" /></svg>
+              </a>
               <button onClick={() => {
                 const w = window.open("");
                 if (w) { w.document.write(`<img src="${(student as any).qr_code_url}" onload="window.print();window.close()" />`); w.document.close(); }
-              }} className="px-2 py-1.5 rounded-lg text-[10px] font-bold"
-                style={{ background: POS.bgSurface, color: POS.primary }}>{t("print")}</button>
+              }} className="w-9 h-9 rounded-lg flex items-center justify-center"
+                style={{ background: POS.bgSurface, color: POS.primary }} aria-label={t("print")}>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M5 2.75C5 1.784 5.784 1 6.75 1h6.5c.966 0 1.75.784 1.75 1.75v3.552c.377.046.752.097 1.126.153A2.212 2.212 0 0118 8.653v4.097A2.25 2.25 0 0115.75 15h-.75v.75c0 .966-.784 1.75-1.75 1.75h-6.5A1.75 1.75 0 015 15.75V15h-.75A2.25 2.25 0 012 12.75V8.653c0-1.082.775-2.034 1.874-2.198.374-.056.749-.107 1.126-.153V2.75zm8.5 3.397V2.75a.25.25 0 00-.25-.25h-6.5a.25.25 0 00-.25.25v3.397a49.98 49.98 0 017 0zM6.5 12.75v3a.25.25 0 00.25.25h6.5a.25.25 0 00.25-.25v-3H6.5z" clipRule="evenodd" /></svg>
+              </button>
             </div>
           </div>
         )}
 
         {/* LINE Connection */}
-        <div className="bg-white rounded-2xl p-3 border flex flex-col items-center gap-2" style={{ borderColor: POS.borderLight, boxShadow: POS.shadowSm }}>
-          <div className="w-12 h-12 rounded-xl flex items-center justify-center text-white text-lg font-bold"
+        <div className="bg-white rounded-2xl p-4 border flex flex-col items-center justify-between" style={{ borderColor: POS.borderLight, boxShadow: POS.shadowSm }}>
+          <div className="w-14 h-14 rounded-xl flex items-center justify-center text-white text-xl font-bold mb-2"
             style={{ background: student.parent_line_id ? "#06C755" : POS.textMuted }}>
             L
           </div>
-          <div className="font-bold text-xs text-center" style={{ color: POS.textPrimary }}>
+          <div className="font-bold text-xs text-center mb-2" style={{ color: POS.textPrimary }}>
             {student.parent_line_id ? t("lineLinked") : t("lineNotLinked")}
           </div>
           {student.parent_line_id ? (
-            <>
-              <div className="text-[10px] truncate w-full text-center" style={{ color: POS.textMuted }}>{student.parent_line_id}</div>
+            <div className="flex flex-col items-center gap-2 w-full">
+              <div className="text-[11px] truncate w-full text-center font-semibold" style={{ color: POS.textMuted }}>{student.parent_line_id}</div>
               <button onClick={async () => {
                 await supabase.from("students").update({ parent_line_id: null }).eq("id", student.id);
                 toast(t("lineUnlinked"), "info");
                 queryClient.invalidateQueries({ queryKey: ["student", id] });
               }}
-                className="px-2 py-1.5 rounded-lg text-[10px] font-bold"
+                className="px-3 py-1.5 rounded-lg text-[11px] font-bold"
                 style={{ background: POS.dangerLight, color: POS.danger }}>
                 {t("unlinkLine")}
               </button>
-            </>
+            </div>
           ) : (
-            <div className="flex flex-col items-center gap-1.5 w-full">
+            <div className="flex flex-col items-center gap-2 w-full">
               <input type="text" placeholder="LINE ID" value={lineUserId}
                 onChange={e => setLineUserId(e.target.value)}
-                className="border rounded-lg px-2 py-1.5 text-[10px] w-full text-center" style={{ borderColor: POS.border }} />
+                className="border rounded-lg px-3 py-2 text-xs w-full text-center" style={{ borderColor: POS.border }} />
               <button disabled={!lineUserId.trim() || linkingLine}
                 onClick={async () => {
                   if (!lineUserId.trim() || !id) return;
@@ -308,7 +312,7 @@ export default function StudentProfilePage() {
                   else { toast(t("lineLinkedSuccess"), "success"); setLineUserId(""); queryClient.invalidateQueries({ queryKey: ["student", id] }); }
                   setLinkingLine(false);
                 }}
-                className="px-2 py-1.5 rounded-lg text-[10px] font-bold text-white disabled:opacity-50 w-full"
+                className="px-3 py-2 rounded-lg text-xs font-bold text-white disabled:opacity-50 w-full"
                 style={{ background: "#06C755" }}>
                 {t("linkLine")}
               </button>
@@ -527,7 +531,7 @@ export default function StudentProfilePage() {
             </div>
             <div>
               <label className="text-xs font-semibold" style={{ color: POS.textSecondary }}>{t("phone")}</label>
-              <input type="tel" className="w-full rounded-xl border px-3 py-3 mt-1" style={{ borderColor: POS.border }}
+              <input type="tel" inputMode="numeric" className="w-full rounded-xl border px-3 py-3 mt-1" style={{ borderColor: POS.border }}
                 value={editForm.parent_phone} onChange={e => setEditForm(f => ({ ...f, parent_phone: e.target.value }))} />
             </div>
             <div>
