@@ -508,5 +508,11 @@
   "showLess": "Show less",
   "newNotification": "New notification",
   "courseSaved": "Course saved successfully!",
-  "confirm": "Confirm"
+  "confirm": "Confirm",
+  "existingStudentInfo": "Existing Student Info",
+  "existingStudentHint": "Use this form to import a student who already has an active package. Enter their remaining hours per course.",
+  "existingStudentAdded": "Existing student {{nick}} imported!",
+  "hoursRemainingLabel": "Hours Remaining",
+  "hoursRemainingHint": "How many hours does this student have left from their current package?",
+  "hoursRemainingRequired": "Please enter hours remaining"
 }

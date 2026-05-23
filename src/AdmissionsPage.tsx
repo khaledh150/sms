@@ -1,5 +1,6 @@
 import React, { useState, useRef } from "react";
 import { useAuth } from "./AuthContext";
+import { useSearchParams } from "react-router-dom";
 import { supabase } from "./supabaseClient";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -33,6 +34,8 @@ export default function AdmissionsPage(_props: { publicMode?: boolean }) {
   const { t } = useTranslation();
   const { user } = useAuth();
   const { toast } = useToast();
+  const [searchParams] = useSearchParams();
+  const isExistingMode = searchParams.get("mode") === "existing";
   const role = user?.role ?? null;
   const [step, setStep] = useState(1);
   const totalSteps = 3;
@@ -41,6 +44,7 @@ export default function AdmissionsPage(_props: { publicMode?: boolean }) {
   const [dob, setDob] = useState(""); const [lineId, setLineId] = useState(""); const [phone, setPhone] = useState("");
   // courseId -> { days, packageIdx }
   const [selections, setSelections] = useState<Record<string, CourseSelection>>({});
+  const [hoursRemaining, setHoursRemaining] = useState<Record<string, number>>({});
   const [files, setFiles] = useState<File[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
@@ -109,6 +113,10 @@ export default function AdmissionsPage(_props: { publicMode?: boolean }) {
           setError(t("pleaseSelectDayTime") + (c ? ` (${c.name})` : ""));
           return false;
         }
+        if (isExistingMode && (hoursRemaining[cid] === undefined || hoursRemaining[cid] < 0)) {
+          setError(t("hoursRemainingRequired") + (c ? ` (${c.name})` : ""));
+          return false;
+        }
       }
     }
     return true;
@@ -154,9 +162,14 @@ export default function AdmissionsPage(_props: { publicMode?: boolean }) {
           const sel = selections[cid];
           const c = courses.find(x => x.id === cid);
           const pkg = c?.hour_packages?.[sel.packageIdx];
+          const purchasedHrs = pkg?.hours ?? 10;
+          const remaining = hoursRemaining[cid];
+          const initialUsed = isExistingMode && remaining !== undefined && remaining >= 0
+            ? Math.max(0, purchasedHrs - remaining)
+            : 0;
           return {
             student_id: newStudent.id, course_id: cid,
-            schedule: sel.days, purchased_hours: pkg?.hours ?? 10, status: "active",
+            schedule: sel.days, purchased_hours: purchasedHrs, initial_used_hours: initialUsed, status: "active",
           };
         });
         if (enrollRows.length) await supabase.from("enrollments").insert(enrollRows);
@@ -199,12 +212,12 @@ export default function AdmissionsPage(_props: { publicMode?: boolean }) {
           className="bg-white rounded-2xl px-8 py-12 max-w-md w-full text-center" style={{ boxShadow: POS.shadowXl }}>
           <CheckCircleIcon className="w-16 h-16 mx-auto mb-4" style={{ color: POS.success }} />
           <h2 className="text-2xl font-extrabold mb-2" style={{ color: POS.primary }}>
-            {role === "admin" ? t("studentAdded", { nick }) : t("applicationSubmitted")}
+            {role === "admin" ? (isExistingMode ? t("existingStudentAdded", { nick }) : t("studentAdded", { nick })) : t("applicationSubmitted")}
           </h2>
           <p className="text-sm" style={{ color: POS.textSecondary }}>
             {role === "admin" ? t("studentEnrolled") : t("staffWillContact")}
           </p>
-          <button onClick={() => { setSubmitted(false); setStep(1); setNick(""); setFirst(""); setLast(""); setDob(""); setPhone(""); setLineId(""); setSelections({}); setFiles([]); }}
+          <button onClick={() => { setSubmitted(false); setStep(1); setNick(""); setFirst(""); setLast(""); setDob(""); setPhone(""); setLineId(""); setSelections({}); setFiles([]); setHoursRemaining({}); }}
             className="mt-6 px-6 py-3 rounded-xl text-white font-bold" style={{ background: POS.primary }}>
             {t("addAnother")}
           </button>
@@ -236,7 +249,14 @@ export default function AdmissionsPage(_props: { publicMode?: boolean }) {
         {step === 1 && (
           <motion.div key="s1" initial={{ opacity: 0, x: 50 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -50 }}
             className="bg-white rounded-2xl p-5 border space-y-4" style={{ borderColor: POS.borderPurple, boxShadow: POS.shadowMd }}>
-            <h2 className="text-lg font-bold" style={{ color: POS.primary }}>{t("studentInfo")}</h2>
+            <h2 className="text-lg font-bold" style={{ color: POS.primary }}>
+              {isExistingMode ? t("existingStudentInfo") : t("studentInfo")}
+            </h2>
+            {isExistingMode && (
+              <p className="text-xs font-semibold px-3 py-2 rounded-lg" style={{ background: "#FFFBEB", color: "#B45309" }}>
+                {t("existingStudentHint")}
+              </p>
+            )}
             {[
               { label: t("nickName") + " *", value: nick, set: setNick, placeholder: t("nicknamePlaceholder") },
               { label: t("firstName") + " *", value: first, set: setFirst, placeholder: t("firstNamePlaceholder") },
@@ -356,6 +376,25 @@ export default function AdmissionsPage(_props: { publicMode?: boolean }) {
                         </div>
                       )}
 
+                      {/* Hours Remaining — existing student mode only */}
+                      {isExistingMode && packages.length > 0 && (
+                        <div className="rounded-xl p-3" style={{ background: "#FFFBEB", border: `2px solid #F59E0B` }}>
+                          <label className="text-xs font-bold block mb-2" style={{ color: "#B45309" }}>
+                            {t("hoursRemainingLabel")} *
+                          </label>
+                          <p className="text-[11px] mb-2" style={{ color: "#92400E" }}>
+                            {t("hoursRemainingHint")}
+                          </p>
+                          <input type="number" min={0} max={packages[sel.packageIdx]?.hours || 999}
+                            className="w-full border rounded-xl px-4 py-3 text-lg font-bold text-center"
+                            style={{ borderColor: "#F59E0B" }}
+                            inputMode="numeric"
+                            placeholder="0"
+                            value={hoursRemaining[course.id] ?? ""}
+                            onChange={e => setHoursRemaining(prev => ({ ...prev, [course.id]: Number(e.target.value) }))} />
+                        </div>
+                      )}
+
                       {/* Book price checkbox */}
                       {(course.book_price ?? 0) > 0 && (
                         <label className="flex items-center gap-3 p-3 rounded-xl cursor-pointer"
@@ -407,6 +446,13 @@ export default function AdmissionsPage(_props: { publicMode?: boolean }) {
                     <div className="flex items-center gap-3 mt-1">
                       <span className="text-sm font-bold" style={{ color: POS.primary }}>{pkg.hours} {t("hrs")}</span>
                       <span className="text-sm font-bold" style={{ color: POS.success }}>฿{pkg.price.toLocaleString()}</span>
+                    </div>
+                  )}
+                  {isExistingMode && hoursRemaining[cid] !== undefined && (
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-xs font-bold" style={{ color: "#B45309" }}>
+                        {t("hoursRemainingLabel")}: {hoursRemaining[cid]} / {pkg?.hours ?? 0}
+                      </span>
                     </div>
                   )}
                   {sel.includeBook && c.book_price > 0 && (

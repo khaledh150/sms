@@ -40,7 +40,11 @@
       "Bash(git commit -m ' *)",
       "Bash(git push *)",
       "Bash(ls \"C:\\\\Apps and Games Dev\\\\wordee\\\\src\\\\assets\\\\logo.webp\")",
-      "Read(//c/Apps and Games Dev/wordee/src/assets/**)"
+      "Read(//c/Apps and Games Dev/wordee/src/assets/**)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Apps and Games Dev\\\\sme v1.2\\\\oldv sept\\\\sme 10 months ago\\\\sms-1d4e3ba5334b97b7a4656bd3418b94a228a387ca\" -Directory)",
+      "Bash(Select-Object Name)",
+      "Bash(ls -la \"C:\\\\Apps and Games Dev\\\\sme v1.2\\\\oldv sept\\\\sme 10 months ago\\\\sms-1d4e3ba5334b97b7a4656bd3418b94a228a387ca\" 2>/dev/null | head -20)",
+      "Read(//c/Apps and Games Dev/sme v1.2/oldv sept/sme 10 months ago/sms-1d4e3ba5334b97b7a4656bd3418b94a228a387ca/**)"
     ]
   }
 }

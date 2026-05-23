@@ -507,5 +507,11 @@
   "showLess": "แสดงน้อยลง",
   "newNotification": "การแจ้งเตือนใหม่",
   "courseSaved": "บันทึกหลักสูตรเรียบร้อย!",
-  "confirm": "ยืนยัน"
+  "confirm": "ยืนยัน",
+  "existingStudentInfo": "ข้อมูลนักเรียนเดิม",
+  "existingStudentHint": "ใช้ฟอร์มนี้เพื่อนำเข้านักเรียนที่มีแพ็คเกจอยู่แล้ว กรอกจำนวนชั่วโมงที่เหลือต่อคอร์ส",
+  "existingStudentAdded": "นำเข้านักเรียนเดิม {{nick}} เรียบร้อย!",
+  "hoursRemainingLabel": "ชั่วโมงที่เหลือ",
+  "hoursRemainingHint": "นักเรียนคนนี้เหลือชั่วโมงเท่าไรจากแพ็คเกจปัจจุบัน?",
+  "hoursRemainingRequired": "กรุณากรอกชั่วโมงที่เหลือ"
 }
