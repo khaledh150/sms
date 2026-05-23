@@ -232,9 +232,7 @@ export default function Layout() {
           style={{ borderBottom: `1px solid rgba(255,255,255,0.4)`, minHeight: 64 }}>
           {/* Left: Logo */}
           <div className="flex items-center gap-2 cursor-pointer" onClick={() => nav("/dashboard")}>
-            <div className="w-10 h-10 rounded-[1rem] flex items-center justify-center text-white text-xl font-bold btn-gummy-sm shadow-sm" style={{ background: POS.primaryGradient }}>
-              WK
-            </div>
+            <img src="/logo.webp" alt="Wonder Kids" className="w-10 h-10 rounded-[1rem] object-contain btn-gummy-sm shadow-sm" />
             <span className="text-2xl sm:text-3xl font-bouncy tracking-tight select-none hidden sm:block" style={{ color: POS.primaryDark }}>
               Wonder Kids
             </span>

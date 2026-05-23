@@ -6,7 +6,7 @@ import { useAuth } from "./AuthContext";
 import LanguageSwitcher from "./LanguageSwitcher";
 import { useTranslation } from "react-i18next";
 import { POS } from "./theme";
-import Lottie from "lottie-react";
+
 
 export default function LoginPage() {
   const { t } = useTranslation();
@@ -16,16 +16,10 @@ export default function LoginPage() {
   const [pw, setPw] = useState("");
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
-  const [lottieData, setLottieData] = useState<any>(null);
 
   useEffect(() => {
     if (user) navigate("/dashboard", { replace: true });
   }, [user, navigate]);
-
-  useEffect(() => {
-    fetch("https://lottie.host/933d6ea6-29a3-487b-bb66-3d7122eefcc2/x5xItQe6D2.json")
-      .then(r => r.json()).then(data => setLottieData(data)).catch(e => console.error(e));
-  }, []);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -47,11 +41,9 @@ export default function LoginPage() {
       <div className="hidden lg:flex flex-col justify-center items-center w-1/2 relative overflow-hidden" style={{ background: POS.primaryGradient }}>
         <div className="z-10 text-center text-white px-10 flex flex-col items-center">
           <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", bounce: 0.5 }}>
-            <div className="w-56 h-56 mx-auto mb-8 drop-shadow-2xl">
-              {lottieData ? <Lottie animationData={lottieData} loop={true} /> : <div className="w-full h-full bg-white/20 rounded-full animate-pulse" />}
-            </div>
+            <img src="/logo.webp" alt="Wonder Kids" className="w-44 h-44 mx-auto mb-6 drop-shadow-2xl object-contain" />
           </motion.div>
-          
+
           <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="text-6xl font-bouncy mb-4 drop-shadow-lg">
             Wonder Kids
           </motion.h1>
@@ -67,11 +59,10 @@ export default function LoginPage() {
 
         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.4 }}
           className="w-full max-w-sm px-6">
-          <div className="text-center mb-10 lg:hidden">
-            <div className="w-32 h-32 mx-auto mb-4 drop-shadow-xl">
-              {lottieData ? <Lottie animationData={lottieData} loop={true} /> : <div className="w-full h-full bg-white/20 rounded-full animate-pulse" />}
-            </div>
+          <div className="text-center mb-6 lg:hidden">
+            <img src="/logo.webp" alt="Wonder Kids" className="w-24 h-24 mx-auto mb-2 drop-shadow-xl object-contain" />
             <h1 className="text-4xl font-bouncy" style={{ color: POS.primary }}>Wonder Kids</h1>
+            <p className="text-sm font-bold mt-1" style={{ color: POS.textMuted }}>{t("schoolTagline")}</p>
           </div>
 
           <div className="bg-white/90 p-10 backdrop-blur-xl border border-white shadow-2xl" style={{ borderRadius: "2.5rem" }}>
