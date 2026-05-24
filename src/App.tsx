@@ -9,6 +9,7 @@ import LoginPage from "./LoginPage";
 /* ---------- LAYOUT & GUARD ---------- */
 import Layout from "./Layout";
 import ProtectedRoute from "./ProtectedRoute";
+import AdminRoute from "./AdminRoute";
 
 /* ---------- CORE POS SCREENS ---------- */
 import HomePage from "./HomePage";
@@ -50,17 +51,17 @@ export default function App() {
             <Route path="/attendance" element={<AttendancePage />} />
             <Route path="/students" element={<StudentsPage />} />
             <Route path="/students/:id" element={<StudentProfilePage />} />
-            <Route path="/inbox" element={<InboxPage />} />
+            <Route path="/inbox" element={<AdminRoute><InboxPage /></AdminRoute>} />
             <Route path="/more" element={<MorePage />} />
 
             {/* Secondary screens (accessible from More or deep links) */}
             <Route path="/admissions" element={<AdmissionsPage />} />
             <Route path="/apply/:token" element={<AdmissionsPage publicMode />} />
             <Route path="/courses" element={<CoursesPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/billing" element={<BillingPage />} />
-            <Route path="/reports" element={<ReportsPage />} />
-            <Route path="/messaging" element={<MessagingPage />} />
+            <Route path="/settings" element={<AdminRoute><SettingsPage /></AdminRoute>} />
+            <Route path="/billing" element={<AdminRoute><BillingPage /></AdminRoute>} />
+            <Route path="/reports" element={<AdminRoute><ReportsPage /></AdminRoute>} />
+            <Route path="/messaging" element={<AdminRoute><MessagingPage /></AdminRoute>} />
 
             {/* Legacy redirects */}
             <Route path="/myschool/students" element={<Navigate to="/students" replace />} />

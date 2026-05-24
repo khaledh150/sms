@@ -531,7 +531,7 @@
   "hoursRemainingHint": "How many hours does this student have left from their current package?",
   "hoursRemainingRequired": "Please enter hours remaining",
   "unlinkedLineAccounts": "Unlinked LINE Accounts",
-  "unlinkedLineHint": "These parents followed your LINE OA but haven't been linked to a student yet.",
+  "unlinkedLineHint": "Parents who message or follow your LINE OA appear here. Ask existing followers to send any message to appear.",
   "selectStudent": "Select student...",
   "linkAccount": "Link",
   "linking": "Linking...",
@@ -541,5 +541,11 @@
   "syncFollowers": "Sync",
   "syncing": "Syncing...",
   "syncComplete": "Sync complete",
-  "newAccountsFound": "new accounts found"
+  "newAccountsFound": "new accounts found",
+  "editMessageTemplates": "Edit Message Templates",
+  "templateHint": "Use {{name}}, {{course}}, {{time}}, {{used}}, {{purchased}}, {{remaining}}, {{added}}, {{school}} as placeholders.",
+  "enrollmentNotify": "Enrollment Notification",
+  "approvalNotify": "Approval Notification",
+  "autoLinkNotify": "Auto Welcome on Link",
+  "syncFollowersError403": "To sync all followers, your LINE OA needs to be verified. Go to LINE Official Account Manager → Settings → Account verification. Meanwhile, ask parents to send any message to your LINE OA to appear here."
 }

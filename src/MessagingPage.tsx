@@ -26,6 +26,15 @@ import { POS } from "./theme";
 import { useTranslation } from "react-i18next";
 import { useToast } from "./hooks/useToast";
 
+interface MessageTemplates {
+  checkin: string;
+  renewal_approaching: string;
+  overlimit: string;
+  enrollment: string;
+  approval: string;
+  link_welcome: string;
+}
+
 interface LineConfig {
   id: string;
   channel_id: string;
@@ -33,6 +42,8 @@ interface LineConfig {
   auto_checkin_notify: boolean;
   auto_limit_notify: boolean;
   auto_renewal_notify: boolean;
+  auto_link_notify: boolean;
+  message_templates: MessageTemplates;
 }
 
 interface LineMessage {
@@ -160,6 +171,9 @@ export default function MessagingPage() {
   const [search, setSearch] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [broadcastOpen, setBroadcastOpen] = useState(false);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
+  const [editTemplates, setEditTemplates] = useState<MessageTemplates | null>(null);
+  const [savingTemplates, setSavingTemplates] = useState(false);
   const [chatStudentId, setChatStudentId] = useState<string | null>(null);
 
   const [recipientMode, setRecipientMode] = useState<"all" | "course">("all");
@@ -175,29 +189,8 @@ export default function MessagingPage() {
   const [linkingId, setLinkingId] = useState<string | null>(null);
   const [unlinkedSearch, setUnlinkedSearch] = useState<Record<string, string>>({});
   const [dropdownOpen, setDropdownOpen] = useState<string | null>(null);
+  const [unlinkedExpanded, setUnlinkedExpanded] = useState(false);
   const [syncing, setSyncing] = useState(false);
-
-  async function handleSyncFollowers() {
-    if (!user?.school_id) return;
-    setSyncing(true);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch(
-        `https://gsicrcogciklihyflhtc.supabase.co/functions/v1/sync-line-followers`,
-        { headers: { Authorization: `Bearer ${session?.access_token || ""}` } }
-      );
-      const data = await res.json();
-      if (res.ok) {
-        toast(`${t("syncComplete")}: ${data.newly_added} ${t("newAccountsFound")}`, "success");
-        queryClient.invalidateQueries({ queryKey: ["unlinked_line_users"] });
-      } else {
-        toast(data.error || "Sync failed", "error");
-      }
-    } catch (e: any) {
-      toast(e.message, "error");
-    }
-    setSyncing(false);
-  }
 
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -316,14 +309,16 @@ export default function MessagingPage() {
 
       await supabase.from("unlinked_line_users").delete().eq("line_user_id", lineUserId);
 
-      const { data: conf } = await supabase.from("line_config").select("id").limit(1).single();
-      if (conf) {
+      if (config?.auto_link_notify) {
         const student = students.find(s => s.id === studentId);
         const name = student?.nick_name || student?.first_name || "";
+        const tpl = config.message_templates?.link_welcome
+          || `Your LINE account has been linked to {{name}}! You will now receive notifications.\n\nบัญชี LINE ของคุณเชื่อมต่อกับ {{name}} เรียบร้อยแล้ว!`;
+        const message = tpl.replace(/\{\{name\}\}/g, name);
         await supabase.from("pending_line_notifications").insert({
           student_id: studentId,
           message_type: "general",
-          message: `Your LINE account has been linked to ${name}! You will now receive notifications about your child's attendance and enrollment.\n\nบัญชี LINE ของคุณเชื่อมต่อกับ ${name} เรียบร้อยแล้ว! คุณจะได้รับแจ้งเตือนเกี่ยวกับการเข้าเรียนและการลงทะเบียน`,
+          message,
           status: "queued",
         });
       }
@@ -334,6 +329,37 @@ export default function MessagingPage() {
       setLinkSelections(prev => { const n = { ...prev }; delete n[lineUserId]; return n; });
     } finally {
       setLinkingId(null);
+    }
+  }
+
+  async function handleSyncFollowers() {
+    setSyncing(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { toast("Not authenticated", "error"); return; }
+      const res = await fetch(
+        `https://gsicrcogciklihyflhtc.supabase.co/functions/v1/sync-line-followers`,
+        { method: "POST", headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" } }
+      );
+      if (res.status === 403 || res.status === 400) {
+        const body = await res.json().catch(() => ({}));
+        if (body?.error?.includes("not available") || res.status === 403) {
+          toast(t("syncFollowersError403"), "warning");
+          return;
+        }
+      }
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        toast(body?.error || "Sync failed", "error");
+        return;
+      }
+      const result = await res.json();
+      toast(`${t("syncComplete")} — ${result.new_count ?? 0} ${t("newAccountsFound")}`, "success");
+      queryClient.invalidateQueries({ queryKey: ["unlinked_line_users"] });
+    } catch (err: any) {
+      toast(err.message || "Sync failed", "error");
+    } finally {
+      setSyncing(false);
     }
   }
 
@@ -371,7 +397,18 @@ export default function MessagingPage() {
     { key: "auto_checkin_notify", label: t("autoCheckInNotify"), color: POS.success },
     { key: "auto_limit_notify", label: t("autoLimitNotify"), color: POS.warning },
     { key: "auto_renewal_notify", label: t("autoRenewalReminder"), color: POS.danger },
+    { key: "auto_link_notify", label: t("autoLinkNotify"), color: "#06C755" },
   ];
+
+  async function handleSaveTemplates() {
+    if (!config || !editTemplates) return;
+    setSavingTemplates(true);
+    const { error } = await supabase.from("line_config").update({ message_templates: editTemplates }).eq("id", config.id);
+    if (error) toast(error.message, "error");
+    else { toast(t("saved"), "success"); queryClient.invalidateQueries({ queryKey: ["line_config"] }); }
+    setSavingTemplates(false);
+    setTemplatesOpen(false);
+  }
 
   // ─── CHAT VIEW ───
   if (chatStudentId && chatStudent) {
@@ -502,7 +539,8 @@ export default function MessagingPage() {
       {/* Unlinked LINE Accounts */}
       {isAdmin && (
         <div className="mx-3 mt-3 rounded-2xl overflow-hidden shadow-sm" style={{ background: "#fff", border: "1px solid #e8e8e8" }}>
-          <div className="px-4 py-3 flex items-center gap-2" style={{ background: "#FFF8E1", borderBottom: "1px solid #FFE082" }}>
+          <button onClick={() => setUnlinkedExpanded(!unlinkedExpanded)}
+            className="w-full px-4 py-3 flex items-center gap-2 text-left" style={{ background: "#FFF8E1", borderBottom: unlinkedExpanded ? "1px solid #FFE082" : "none" }}>
             <LinkIcon className="w-4 h-4" style={{ color: "#F59E0B" }} />
             <div className="flex-1">
               <span className="text-sm font-bold" style={{ color: "#92400E" }}>{t("unlinkedLineAccounts")}</span>
@@ -512,16 +550,22 @@ export default function MessagingPage() {
                 </span>
               )}
             </div>
-            <button onClick={handleSyncFollowers} disabled={syncing}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold disabled:opacity-50"
-              style={{ background: "#FDE68A", color: "#92400E" }}>
-              <ArrowPathIcon className={`w-3.5 h-3.5 ${syncing ? "animate-spin" : ""}`} />
-              {syncing ? t("syncing") : t("syncFollowers")}
-            </button>
-          </div>
-          {unlinkedUsers.length > 0 && (
+            <ChevronDownIcon className={`w-4 h-4 transition-transform ${unlinkedExpanded ? "rotate-180" : ""}`} style={{ color: "#92400E" }} />
+          </button>
+          {unlinkedExpanded && (
+            <div className="flex justify-end px-4 pt-2" style={{ background: "#FFF8E1" }}>
+              <button onClick={handleSyncFollowers} disabled={syncing}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition hover:opacity-80"
+                style={{ background: "#06C755", color: "#fff" }}>
+                <ArrowPathIcon className={`w-3.5 h-3.5 ${syncing ? "animate-spin" : ""}`} />
+                {syncing ? t("syncing") : t("syncFollowers")}
+              </button>
+            </div>
+          )}
+          {unlinkedExpanded && unlinkedUsers.length > 0 && (
             <p className="text-[11px] px-4 pt-2 pb-1" style={{ color: "#999" }}>{t("unlinkedLineHint")}</p>
           )}
+          {unlinkedExpanded && (<>
           <div className="divide-y" style={{ borderColor: "#f5f5f5" }}>
             {unlinkedUsers.map(u => {
               const selectedSid = linkSelections[u.line_user_id] || "";
@@ -623,6 +667,7 @@ export default function MessagingPage() {
               <p className="text-xs font-semibold" style={{ color: "#bbb" }}>{t("noUnlinkedAccounts")}</p>
             </div>
           )}
+          </>)}
         </div>
       )}
 
@@ -799,6 +844,13 @@ export default function MessagingPage() {
                 ))}
               </div>
             )}
+            {config && (
+              <button onClick={() => { setEditTemplates(config.message_templates || {} as MessageTemplates); setTemplatesOpen(true); setSettingsOpen(false); }}
+                className="w-full mt-3 py-2.5 rounded-lg text-sm font-bold border"
+                style={{ borderColor: LINE_GREEN, color: LINE_GREEN }}>
+                {t("editMessageTemplates")}
+              </button>
+            )}
             <div className="flex gap-3 mt-5">
               <button onClick={() => setSettingsOpen(false)} className="flex-1 py-2.5 rounded-lg border font-bold text-sm"
                 style={{ borderColor: "#e0e0e0", color: "#888" }}>{t("cancel")}</button>
@@ -806,6 +858,55 @@ export default function MessagingPage() {
                 className="flex-1 py-2.5 rounded-lg text-white font-bold text-sm disabled:opacity-50"
                 style={{ background: LINE_GREEN }}>
                 {savingConfig ? t("saving") : t("saveLineConfig")}
+              </button>
+            </div>
+          </Dialog.Panel>
+        </div>
+      </Dialog>
+
+      {/* Message Templates Modal */}
+      <Dialog open={templatesOpen} onClose={() => setTemplatesOpen(false)} className="relative z-50">
+        <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
+        <div className="fixed inset-0 flex items-center justify-center p-4">
+          <Dialog.Panel className="bg-white rounded-2xl p-5 max-w-lg w-full mx-4 shadow-xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold" style={{ color: LINE_GREEN }}>{t("editMessageTemplates")}</h2>
+              <button onClick={() => setTemplatesOpen(false)} style={{ minHeight: "auto" }}>
+                <XMarkIcon className="w-6 h-6" style={{ color: "#999" }} />
+              </button>
+            </div>
+            <p className="text-[11px] mb-4" style={{ color: "#999" }}>{t("templateHint")}</p>
+            {editTemplates && (
+              <div className="space-y-4">
+                {([
+                  { key: "checkin" as const, label: t("autoCheckInNotify"), vars: "{{name}}, {{course}}, {{time}}" },
+                  { key: "renewal_approaching" as const, label: t("autoLimitNotify"), vars: "{{name}}, {{course}}, {{used}}, {{purchased}}, {{remaining}}" },
+                  { key: "overlimit" as const, label: t("autoRenewalReminder"), vars: "{{name}}, {{course}}, {{used}}, {{purchased}}" },
+                  { key: "enrollment" as const, label: t("enrollmentNotify"), vars: "{{name}}, {{course}}, {{purchased}}, {{school}}" },
+                  { key: "approval" as const, label: t("approvalNotify"), vars: "{{name}}, {{course}}, {{added}}" },
+                  { key: "link_welcome" as const, label: t("autoLinkNotify"), vars: "{{name}}" },
+                ]).map(tpl => (
+                  <div key={tpl.key}>
+                    <label className="text-xs font-bold block mb-1" style={{ color: POS.textPrimary }}>{tpl.label}</label>
+                    <p className="text-[10px] mb-1" style={{ color: "#bbb" }}>{tpl.vars}</p>
+                    <textarea
+                      value={editTemplates[tpl.key] || ""}
+                      onChange={e => setEditTemplates(prev => prev ? { ...prev, [tpl.key]: e.target.value } : prev)}
+                      rows={4}
+                      className="w-full border rounded-lg px-3 py-2 text-xs resize-none"
+                      style={{ borderColor: "#e0e0e0", lineHeight: 1.5 }}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-3 mt-5">
+              <button onClick={() => setTemplatesOpen(false)} className="flex-1 py-2.5 rounded-lg border font-bold text-sm"
+                style={{ borderColor: "#e0e0e0", color: "#888" }}>{t("cancel")}</button>
+              <button onClick={handleSaveTemplates} disabled={savingTemplates}
+                className="flex-1 py-2.5 rounded-lg text-white font-bold text-sm disabled:opacity-50"
+                style={{ background: LINE_GREEN }}>
+                {savingTemplates ? t("saving") : t("save")}
               </button>
             </div>
           </Dialog.Panel>

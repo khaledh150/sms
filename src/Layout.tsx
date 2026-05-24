@@ -52,7 +52,8 @@ export default function Layout() {
   const loc = useLocation();
   const { user, setUser } = useAuth();
   const { toast } = useToast();
-  const { data: pendingReviewCount = 0 } = usePendingReviewCount(true);
+  const isAdmin = user?.role === "admin";
+  const { data: pendingReviewCount = 0 } = usePendingReviewCount(isAdmin);
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -216,7 +217,8 @@ export default function Layout() {
     return () => vv.removeEventListener("resize", onResize);
   }, []);
 
-  const activeTab = TABS.find(t => loc.pathname.startsWith(t.path))?.key || "home";
+  const visibleTabs = TABS.filter(t => t.key !== "inbox" || isAdmin);
+  const activeTab = visibleTabs.find(t => loc.pathname.startsWith(t.path))?.key || "home";
 
   return (
     <div className="min-h-[100dvh] flex flex-col relative overflow-x-hidden" style={{ background: "transparent" }}>
@@ -346,7 +348,7 @@ export default function Layout() {
         {/* BOTTOM TAB BAR — hidden when keyboard is open */}
         <nav className="bottom-nav fixed bottom-0 left-0 right-0 z-40 glass border-t shadow-[0_-10px_20px_rgba(0,0,0,0.03)] flex items-stretch justify-around px-2 pb-safe transition-transform duration-200"
           style={{ transform: keyboardOpen ? "translateY(100%)" : "translateY(0)", borderTopColor: "rgba(255,255,255,0.4)", minHeight: 52, paddingBottom: "max(env(safe-area-inset-bottom), 4px)", paddingTop: 2 }}>
-          {TABS.map(tab => {
+          {visibleTabs.map(tab => {
           const isActive = activeTab === tab.key;
           const Icon = isActive ? tab.iconActive : tab.icon;
           const showBadge = tab.key === "inbox" && pendingReviewCount > 0;

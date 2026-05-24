@@ -530,7 +530,7 @@
   "hoursRemainingHint": "นักเรียนคนนี้เหลือชั่วโมงเท่าไรจากแพ็คเกจปัจจุบัน?",
   "hoursRemainingRequired": "กรุณากรอกชั่วโมงที่เหลือ",
   "unlinkedLineAccounts": "บัญชี LINE ที่ยังไม่ได้เชื่อมต่อ",
-  "unlinkedLineHint": "ผู้ปกครองเหล่านี้เพิ่มเพื่อน LINE OA แล้ว แต่ยังไม่ได้เชื่อมต่อกับนักเรียน",
+  "unlinkedLineHint": "ผู้ปกครองที่ส่งข้อความหรือเพิ่มเพื่อน LINE OA จะปรากฏที่นี่ ขอให้ผู้ปกครองที่มีอยู่ส่งข้อความใดก็ได้เพื่อให้ปรากฏ",
   "selectStudent": "เลือกนักเรียน...",
   "linkAccount": "เชื่อมต่อ",
   "linking": "กำลังเชื่อมต่อ...",
@@ -540,5 +540,11 @@
   "syncFollowers": "ซิงค์",
   "syncing": "กำลังซิงค์...",
   "syncComplete": "ซิงค์เรียบร้อย",
-  "newAccountsFound": "บัญชีใหม่ที่พบ"
+  "newAccountsFound": "บัญชีใหม่ที่พบ",
+  "editMessageTemplates": "แก้ไขข้อความอัตโนมัติ",
+  "templateHint": "ใช้ {{name}}, {{course}}, {{time}}, {{used}}, {{purchased}}, {{remaining}}, {{added}}, {{school}} เป็นตัวแทนค่า",
+  "enrollmentNotify": "แจ้งเตือนการลงทะเบียน",
+  "approvalNotify": "แจ้งเตือนการอนุมัติ",
+  "autoLinkNotify": "ส่งข้อความต้อนรับเมื่อเชื่อมต่อ",
+  "syncFollowersError403": "หากต้องการซิงค์ผู้ติดตามทั้งหมด LINE OA ของคุณต้องได้รับการยืนยัน ไปที่ LINE Official Account Manager → ตั้งค่า → ยืนยันบัญชี ในระหว่างนี้ขอให้ผู้ปกครองส่งข้อความใดก็ได้ไปยัง LINE OA ของคุณ"
 }

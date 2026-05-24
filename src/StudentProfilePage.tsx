@@ -68,6 +68,15 @@ export default function StudentProfilePage() {
     staleTime: 60_000,
   });
 
+  const { data: lineConfig } = useQuery({
+    queryKey: ["line_config"],
+    queryFn: async () => {
+      const { data } = await supabase.from("line_config").select("auto_link_notify,message_templates").limit(1).maybeSingle();
+      return data as { auto_link_notify: boolean; message_templates: Record<string, string> } | null;
+    },
+    staleTime: 300_000,
+  });
+
   const [expandedCourse, setExpandedCourse] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [renewCourse, setRenewCourse] = useState<string | null>(null);
@@ -401,12 +410,16 @@ export default function StudentProfilePage() {
                       }, { onConflict: "student_id" });
                       await supabase.from("students").update({ parent_line_id: selectedUnlinkedId }).eq("id", id);
                       await supabase.from("unlinked_line_users").delete().eq("line_user_id", selectedUnlinkedId);
-                      const name = student.nick_name || student.first_name || "";
-                      await supabase.from("pending_line_notifications").insert({
-                        student_id: id, message_type: "general",
-                        message: `Your LINE account has been linked to ${name}!\nYou will now receive notifications about your child's attendance and enrollment.\n\nบัญชี LINE ของคุณเชื่อมต่อกับ ${name} เรียบร้อยแล้ว!\nคุณจะได้รับแจ้งเตือนเกี่ยวกับการเข้าเรียนและการลงทะเบียน`,
-                        status: "queued",
-                      });
+                      if (lineConfig?.auto_link_notify !== false) {
+                        const name = student.nick_name || student.first_name || "";
+                        const tpl = lineConfig?.message_templates?.link_welcome
+                          || `Your LINE account has been linked to {{name}}!\n\nบัญชี LINE ของคุณเชื่อมต่อกับ {{name}} เรียบร้อยแล้ว!`;
+                        await supabase.from("pending_line_notifications").insert({
+                          student_id: id, message_type: "general",
+                          message: tpl.replace(/\{\{name\}\}/g, name),
+                          status: "queued",
+                        });
+                      }
                       toast(t("lineLinkedSuccess"), "success");
                       setSelectedUnlinkedId("");
                       queryClient.invalidateQueries({ queryKey: ["line_connection", id] });
