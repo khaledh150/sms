@@ -529,5 +529,13 @@
   "existingStudentAdded": "Existing student {{nick}} imported!",
   "hoursRemainingLabel": "Hours Remaining",
   "hoursRemainingHint": "How many hours does this student have left from their current package?",
-  "hoursRemainingRequired": "Please enter hours remaining"
+  "hoursRemainingRequired": "Please enter hours remaining",
+  "unlinkedLineAccounts": "Unlinked LINE Accounts",
+  "unlinkedLineHint": "These parents followed your LINE OA but haven't been linked to a student yet.",
+  "selectStudent": "Select student...",
+  "linkAccount": "Link",
+  "linking": "Linking...",
+  "accountLinked": "Account linked successfully!",
+  "noUnlinkedAccounts": "No unlinked accounts",
+  "followedOn": "Followed"
 }

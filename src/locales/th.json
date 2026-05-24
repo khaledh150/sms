@@ -528,5 +528,13 @@
   "existingStudentAdded": "นำเข้านักเรียนเดิม {{nick}} เรียบร้อย!",
   "hoursRemainingLabel": "ชั่วโมงที่เหลือ",
   "hoursRemainingHint": "นักเรียนคนนี้เหลือชั่วโมงเท่าไรจากแพ็คเกจปัจจุบัน?",
-  "hoursRemainingRequired": "กรุณากรอกชั่วโมงที่เหลือ"
+  "hoursRemainingRequired": "กรุณากรอกชั่วโมงที่เหลือ",
+  "unlinkedLineAccounts": "บัญชี LINE ที่ยังไม่ได้เชื่อมต่อ",
+  "unlinkedLineHint": "ผู้ปกครองเหล่านี้เพิ่มเพื่อน LINE OA แล้ว แต่ยังไม่ได้เชื่อมต่อกับนักเรียน",
+  "selectStudent": "เลือกนักเรียน...",
+  "linkAccount": "เชื่อมต่อ",
+  "linking": "กำลังเชื่อมต่อ...",
+  "accountLinked": "เชื่อมต่อบัญชีเรียบร้อยแล้ว!",
+  "noUnlinkedAccounts": "ไม่มีบัญชีที่ยังไม่ได้เชื่อมต่อ",
+  "followedOn": "เพิ่มเพื่อนเมื่อ"
 }
