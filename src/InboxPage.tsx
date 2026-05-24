@@ -1,7 +1,5 @@
 import { useState, useMemo } from "react";
-// import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-// framer-motion unused
 import { Dialog } from "@headlessui/react";
 import {
   CheckIcon, XMarkIcon, ClipboardDocumentCheckIcon,

@@ -50,7 +50,8 @@
       "PowerShell(Get-ChildItem \"c:\\\\Apps and Games Dev\\\\sme\\\\supabase\\\\\" -Recurse -File | Where-Object { $_.Extension -match '\\\\.\\(ts|sql|json\\)$' -and $_.FullName -notmatch 'node_modules' } | Select-Object -ExpandProperty FullName)",
       "PowerShell(Get-Process -Name node -ErrorAction SilentlyContinue)",
       "Bash(curl -s \"https://gsicrcogciklihyflhtc.supabase.co/functions/v1/line-webhook\")",
-      "Bash(curl -s -w \"\\\\nTime: %{time_total}s\\\\n\" \"https://gsicrcogciklihyflhtc.supabase.co/functions/v1/line-webhook?school=test\" -X POST -H \"Content-Type: application/json\" -d '{\"events\":[]}')"
+      "Bash(curl -s -w \"\\\\nTime: %{time_total}s\\\\n\" \"https://gsicrcogciklihyflhtc.supabase.co/functions/v1/line-webhook?school=test\" -X POST -H \"Content-Type: application/json\" -d '{\"events\":[]}')",
+      "Bash(powershell -c \"Get-Content 'c:\\\\Apps and Games Dev\\\\sme\\\\src\\\\StudentProfilePage.tsx' | Measure-Object -Line | Select-Object -ExpandProperty Lines; Get-Content 'c:\\\\Apps and Games Dev\\\\sme\\\\src\\\\MessagingPage.tsx' | Measure-Object -Line | Select-Object -ExpandProperty Lines; Get-Content 'c:\\\\Apps and Games Dev\\\\sme\\\\src\\\\AttendancePage.tsx' | Measure-Object -Line | Select-Object -ExpandProperty Lines; Get-Content 'c:\\\\Apps and Games Dev\\\\sme\\\\src\\\\HomePage.tsx' | Measure-Object -Line | Select-Object -ExpandProperty Lines\")"
     ]
   }
 }

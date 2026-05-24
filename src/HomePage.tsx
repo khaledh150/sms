@@ -133,7 +133,11 @@ export default function HomePage() {
   function handlePrintFeed() {
     const w = window.open("");
     if (w) {
-      w.document.write(`<pre style="font-family:sans-serif;font-size:14px">${buildFeedText()}</pre>`);
+      const pre = w.document.createElement("pre");
+      pre.style.fontFamily = "sans-serif";
+      pre.style.fontSize = "14px";
+      pre.textContent = buildFeedText();
+      w.document.body.appendChild(pre);
       w.document.close();
       w.print();
     }

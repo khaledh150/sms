@@ -1,5 +1,6 @@
 import "./i18n";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { lazy, Suspense } from "react";
+import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ToastProvider } from "./hooks/useToast";
 
@@ -11,29 +12,47 @@ import Layout from "./Layout";
 import ProtectedRoute from "./ProtectedRoute";
 import AdminRoute from "./AdminRoute";
 
-/* ---------- CORE POS SCREENS ---------- */
+function LegacyStudentRedirect() {
+  const { id } = useParams();
+  return <Navigate to={`/students/${id}`} replace />;
+}
+
+/* ---------- CORE POS SCREENS (eagerly loaded) ---------- */
 import HomePage from "./HomePage";
 import AttendancePage from "./AttendancePage";
 import StudentsPage from "./StudentsPage";
 import StudentProfilePage from "./StudentProfilePage";
-import InboxPage from "./InboxPage";
 import MorePage from "./MorePage";
 
-/* ---------- SECONDARY SCREENS ---------- */
-import AdmissionsPage from "./AdmissionsPage";
-import CoursesPage from "./CoursesPage";
-import SettingsPage from "./SettingsPage";
-import BillingPage from "./BillingPage";
-import ReportsPage from "./ReportsPage";
-import MessagingPage from "./MessagingPage";
+/* ---------- SECONDARY / ADMIN SCREENS (lazy loaded) ---------- */
+const InboxPage = lazy(() => import("./InboxPage"));
+const AdmissionsPage = lazy(() => import("./AdmissionsPage"));
+const CoursesPage = lazy(() => import("./CoursesPage"));
+const SettingsPage = lazy(() => import("./SettingsPage"));
+const BillingPage = lazy(() => import("./BillingPage"));
+const ReportsPage = lazy(() => import("./ReportsPage"));
+const MessagingPage = lazy(() => import("./MessagingPage"));
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: { retry: 1, refetchOnWindowFocus: false },
+  },
+});
+
+function LazyFallback() {
+  return (
+    <div className="flex items-center justify-center py-20">
+      <div className="w-8 h-8 rounded-full border-3 animate-spin" style={{ borderColor: "#E8E0FF", borderTopColor: "#6C5CE7" }} />
+    </div>
+  );
+}
 
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ToastProvider>
       <BrowserRouter basename={import.meta.env.BASE_URL}>
+        <Suspense fallback={<LazyFallback />}>
         <Routes>
           {/* Public */}
           <Route path="/login" element={<LoginPage />} />
@@ -46,7 +65,7 @@ export default function App() {
               </ProtectedRoute>
             }
           >
-            {/* Core 5 POS screens */}
+            {/* Core POS screens */}
             <Route path="/dashboard" element={<HomePage />} />
             <Route path="/attendance" element={<AttendancePage />} />
             <Route path="/students" element={<StudentsPage />} />
@@ -54,7 +73,7 @@ export default function App() {
             <Route path="/inbox" element={<AdminRoute><InboxPage /></AdminRoute>} />
             <Route path="/more" element={<MorePage />} />
 
-            {/* Secondary screens (accessible from More or deep links) */}
+            {/* Secondary screens */}
             <Route path="/admissions" element={<AdmissionsPage />} />
             <Route path="/apply/:token" element={<AdmissionsPage publicMode />} />
             <Route path="/courses" element={<CoursesPage />} />
@@ -65,7 +84,7 @@ export default function App() {
 
             {/* Legacy redirects */}
             <Route path="/myschool/students" element={<Navigate to="/students" replace />} />
-            <Route path="/myschool/student/:id" element={<Navigate to="/students/:id" replace />} />
+            <Route path="/myschool/student/:id" element={<LegacyStudentRedirect />} />
             <Route path="/myschool/students/inactive" element={<Navigate to="/students" replace />} />
             <Route path="/myschool/courses" element={<Navigate to="/courses" replace />} />
             <Route path="/review" element={<Navigate to="/inbox" replace />} />
@@ -79,6 +98,7 @@ export default function App() {
           {/* Catch-all → login */}
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
+        </Suspense>
       </BrowserRouter>
       </ToastProvider>
     </QueryClientProvider>

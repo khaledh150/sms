@@ -16,7 +16,6 @@ import {
   BellIcon as BellOutline,
   Bars3BottomRightIcon as MoreOutline,
 } from "@heroicons/react/24/outline";
-import { BellIcon } from "@heroicons/react/24/solid";
 import { supabase } from "./supabaseClient";
 import { useAuth } from "./AuthContext";
 import { POS } from "./theme";
@@ -27,6 +26,27 @@ import OfflineBanner from "./OfflineBanner";
 import { INACTIVITY_TIMEOUT_MS, INACTIVITY_THROTTLE_MS } from "./constants";
 import { validateImageFile } from "./hooks/useFileValidation";
 import { useToast } from "./hooks/useToast";
+
+function HeaderClock() {
+  const [time, setTime] = useState(new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  return (
+    <div className="flex flex-col items-center mx-auto">
+      <span className="text-xs font-extrabold uppercase tracking-widest text-[#7C8DB0] md:hidden">
+        {time.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}
+      </span>
+      <span className="text-xl font-bouncy tracking-wide hidden md:block" style={{ color: POS.primaryDark }}>
+        {time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+      </span>
+      <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#7C8DB0] hidden md:block">
+        {time.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' })}
+      </span>
+    </div>
+  );
+}
 
 interface Notification {
   id: string;
@@ -63,7 +83,6 @@ export default function Layout() {
   const fileInput = useRef<HTMLInputElement | null>(null);
   const bellRef = useRef<HTMLDivElement | null>(null);
 
-  const [time, setTime] = useState(new Date());
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   useEffect(() => {
@@ -86,10 +105,6 @@ export default function Layout() {
       .then(({ data }) => setProfileUrl(data?.avatar_url || `${import.meta.env.BASE_URL}avatar.png`));
   }, [user]);
 
-  useEffect(() => {
-    const timer = setInterval(() => setTime(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
 
   function notificationLabel(n: Notification): string {
     const nick = n.student_name || "";
@@ -242,20 +257,7 @@ export default function Layout() {
             </span>
           </div>
 
-          {/* Center: Date on mobile, Clock+Date on desktop */}
-          <div className="flex flex-col items-center mx-auto">
-            {/* Mobile: just date */}
-            <span className="text-xs font-extrabold uppercase tracking-widest text-[#7C8DB0] md:hidden">
-              {time.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}
-            </span>
-            {/* Desktop: time + date */}
-            <span className="text-xl font-bouncy tracking-wide hidden md:block" style={{ color: POS.primaryDark }}>
-              {time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            </span>
-            <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#7C8DB0] hidden md:block">
-              {time.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' })}
-            </span>
-          </div>
+          <HeaderClock />
 
           {/* Right: Lang, Bell, Fullscreen, Profile */}
           <div className="flex items-center gap-1.5 sm:gap-2 z-10">
@@ -265,7 +267,7 @@ export default function Layout() {
             <div ref={bellRef} className="relative">
               <button onClick={() => setShowNotifications(!showNotifications)}
                 className="relative p-2 rounded-[1rem] transition hover:bg-white hover:shadow-sm btn-gummy-sm" aria-label="Notifications">
-                <BellIcon className="w-6 h-6" style={{ color: POS.primary }} />
+                <BellSolid className="w-6 h-6" style={{ color: POS.primary }} />
                 {unreadCount > 0 && (
                   <span className="absolute -top-1 -right-1 text-white text-[10px] font-bold rounded-full h-5 w-5 flex items-center justify-center" style={{ background: POS.danger }}>
                     {unreadCount > 99 ? "99+" : unreadCount}

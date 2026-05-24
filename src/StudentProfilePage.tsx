@@ -11,7 +11,7 @@ import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { supabase } from "./supabaseClient";
 import { useAuth } from "./AuthContext";
-import { useStudent, useStudentEnrollments, useStudentNotes } from "./hooks/useStudents";
+import { useStudent, useStudentEnrollments } from "./hooks/useStudents";
 import { useStudentAttendance } from "./hooks/useAttendance";
 import { useCourses } from "./hooks/useCourses";
 // addStudentNote removed — unused
@@ -32,7 +32,6 @@ export default function StudentProfilePage() {
   const { data: enrollments = [] } = useStudentEnrollments(id);
   const { data: attendance = [] } = useStudentAttendance(id);
   const { data: courses = [] } = useCourses();
-  useStudentNotes(id);
   const { data: pendingChanges = [] } = useQuery({
     queryKey: ["pending_changes_student", id],
     queryFn: () => fetchPendingChangesForStudent(id!),
@@ -310,18 +309,23 @@ export default function StudentProfilePage() {
       {/* QR Code + LINE Connection — side by side */}
       <div className="grid grid-cols-2 gap-3">
         {/* QR Code */}
-        {(student as any).qr_code_url && (
+        {student.qr_code_url && (
           <div className="bg-white rounded-2xl p-4 border flex flex-col items-center justify-between" style={{ borderColor: POS.borderLight, boxShadow: POS.shadowSm }}>
-            <img src={(student as any).qr_code_url} alt="QR Code" className="w-24 h-24 rounded-lg mb-2" />
+            <img src={student.qr_code_url} alt="QR Code" className="w-24 h-24 rounded-lg mb-2" />
             <div className="font-bold text-xs mb-2" style={{ color: POS.textPrimary }}>{t("studentQrCode")}</div>
             <div className="flex gap-2">
-              <a href={(student as any).qr_code_url} download className="w-9 h-9 rounded-lg flex items-center justify-center"
+              <a href={student.qr_code_url} download className="w-9 h-9 rounded-lg flex items-center justify-center"
                 style={{ background: POS.bgSurface, color: POS.primary }} aria-label={t("download")}>
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M10.75 2.75a.75.75 0 00-1.5 0v8.614L6.295 8.235a.75.75 0 10-1.09 1.03l4.25 4.5a.75.75 0 001.09 0l4.25-4.5a.75.75 0 00-1.09-1.03l-2.955 3.129V2.75z" /><path d="M3.5 12.75a.75.75 0 00-1.5 0v2.5A2.75 2.75 0 004.75 18h10.5A2.75 2.75 0 0018 15.25v-2.5a.75.75 0 00-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5z" /></svg>
               </a>
               <button onClick={() => {
                 const w = window.open("");
-                if (w) { w.document.write(`<img src="${(student as any).qr_code_url}" onload="window.print();window.close()" />`); w.document.close(); }
+                if (w) {
+                  const img = w.document.createElement("img");
+                  img.src = student.qr_code_url;
+                  img.onload = () => { w.print(); w.close(); };
+                  w.document.body.appendChild(img);
+                }
               }} className="w-9 h-9 rounded-lg flex items-center justify-center"
                 style={{ background: POS.bgSurface, color: POS.primary }} aria-label={t("print")}>
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M5 2.75C5 1.784 5.784 1 6.75 1h6.5c.966 0 1.75.784 1.75 1.75v3.552c.377.046.752.097 1.126.153A2.212 2.212 0 0118 8.653v4.097A2.25 2.25 0 0115.75 15h-.75v.75c0 .966-.784 1.75-1.75 1.75h-6.5A1.75 1.75 0 015 15.75V15h-.75A2.25 2.25 0 012 12.75V8.653c0-1.082.775-2.034 1.874-2.198.374-.056.749-.107 1.126-.153V2.75zm8.5 3.397V2.75a.25.25 0 00-.25-.25h-6.5a.25.25 0 00-.25.25v3.397a49.98 49.98 0 017 0zM6.5 12.75v3a.25.25 0 00.25.25h6.5a.25.25 0 00.25-.25v-3H6.5z" clipRule="evenodd" /></svg>

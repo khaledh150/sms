@@ -19,7 +19,7 @@ import {
   ArrowPathIcon,
 } from "@heroicons/react/24/solid";
 import { motion } from "framer-motion";
-import { supabase } from "./supabaseClient";
+import { supabase, SUPABASE_FUNCTIONS_URL } from "./supabaseClient";
 import { useAuth } from "./AuthContext";
 import { useCourses } from "./hooks/useCourses";
 import { useStudents } from "./hooks/useStudents";
@@ -353,7 +353,7 @@ export default function MessagingPage() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { toast("Not authenticated", "error"); return; }
       const res = await fetch(
-        `https://gsicrcogciklihyflhtc.supabase.co/functions/v1/sync-line-followers`,
+        `${SUPABASE_FUNCTIONS_URL}/sync-line-followers`,
         { method: "POST", headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" } }
       );
       if (res.status === 403 || res.status === 400) {
@@ -778,12 +778,13 @@ export default function MessagingPage() {
       <motion.button whileTap={{ scale: 0.9 }}
         onClick={() => { setBroadcastOpen(true); setMessageText(""); }}
         className="fixed bottom-24 right-6 w-14 h-14 rounded-full shadow-lg flex items-center justify-center z-30"
-        style={{ background: LINE_GREEN, boxShadow: "0 4px 16px rgba(6, 199, 85, 0.4)" }}>
+        style={{ background: LINE_GREEN, boxShadow: "0 4px 16px rgba(6, 199, 85, 0.4)" }}
+        aria-label={t("sendMessage")}>
         <PencilSquareIcon className="w-6 h-6 text-white" />
       </motion.button>
 
       {/* Broadcast Modal */}
-      <Dialog open={broadcastOpen} onClose={() => setBroadcastOpen(false)} className="relative z-50">
+      <Dialog open={broadcastOpen} onClose={() => { setBroadcastOpen(false); setMessageText(""); }} className="relative z-50">
         <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
         <div className="fixed inset-0 flex flex-col justify-end sm:items-center sm:justify-center">
           <Dialog.Panel className="bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl max-h-[80vh] overflow-y-auto">
@@ -880,10 +881,10 @@ export default function MessagingPage() {
                   <p className="text-[10px] mb-1.5" style={{ color: "#999" }}>{t("webhookUrlHint")}</p>
                   <div className="flex gap-2">
                     <input type="text" readOnly
-                      value={`https://gsicrcogciklihyflhtc.supabase.co/functions/v1/line-webhook?school=${user?.school_id || ""}`}
+                      value={`${SUPABASE_FUNCTIONS_URL}/line-webhook?school=${user?.school_id || ""}`}
                       className="flex-1 border rounded-lg px-3 py-2 text-[11px] font-mono truncate" style={{ borderColor: "#e0e0e0", background: "#f9f9f9" }} />
                     <button onClick={() => {
-                      navigator.clipboard.writeText(`https://gsicrcogciklihyflhtc.supabase.co/functions/v1/line-webhook?school=${user?.school_id || ""}`);
+                      navigator.clipboard.writeText(`${SUPABASE_FUNCTIONS_URL}/line-webhook?school=${user?.school_id || ""}`);
                       toast(t("copied"), "success");
                     }} className="px-3 py-2 rounded-lg text-xs font-bold text-white flex-shrink-0" style={{ background: LINE_GREEN }}>
                       {t("copy")}
