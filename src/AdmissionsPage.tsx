@@ -217,7 +217,7 @@ export default function AdmissionsPage(_props: { publicMode?: boolean }) {
           <p className="text-sm" style={{ color: POS.textSecondary }}>
             {role === "admin" ? t("studentEnrolled") : t("staffWillContact")}
           </p>
-          <button onClick={() => { setSubmitted(false); setStep(1); setNick(""); setFirst(""); setLast(""); setDob(""); setPhone(""); setLineId(""); setSelections({}); setFiles([]); setHoursRemaining({}); }}
+          <button onClick={() => { setSubmitted(false); setStep(1); setNick(""); setFirst(""); setLast(""); setDob(""); setPhone(""); setSelections({}); setFiles([]); setHoursRemaining({}); }}
             className="mt-6 px-6 py-3 rounded-xl text-white font-bold" style={{ background: POS.primary }}>
             {t("addAnother")}
           </button>
