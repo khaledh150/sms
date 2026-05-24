@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { Dialog } from "@headlessui/react";
 import {
   PaperAirplaneIcon,
@@ -61,6 +62,7 @@ interface LineConnection {
   student_id: string;
   line_user_id: string;
   display_name: string | null;
+  picture_url: string | null;
 }
 
 function useLineConfig() {
@@ -159,6 +161,7 @@ export default function MessagingPage() {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const nav = useNavigate();
   const isAdmin = user?.role === "admin";
 
   const { data: config } = useLineConfig();
@@ -191,8 +194,18 @@ export default function MessagingPage() {
   const [dropdownOpen, setDropdownOpen] = useState<string | null>(null);
   const [unlinkedExpanded, setUnlinkedExpanded] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [editNameValue, setEditNameValue] = useState("");
 
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const saved = sessionStorage.getItem("messaging_returnToChat");
+    if (saved) {
+      setChatStudentId(saved);
+      sessionStorage.removeItem("messaging_returnToChat");
+    }
+  }, []);
 
   const isConfigured = config?.secrets_configured ?? false;
   const connectedStudentIds = useMemo(() => new Set(connections.map(c => c.student_id)), [connections]);
@@ -298,10 +311,12 @@ export default function MessagingPage() {
     if (!studentId) return;
     setLinkingId(lineUserId);
     try {
+      const unlinked = unlinkedUsers.find(u => u.line_user_id === lineUserId);
       const { error: connErr } = await supabase.from("line_connections").upsert({
         student_id: studentId,
         line_user_id: lineUserId,
-        display_name: unlinkedUsers.find(u => u.line_user_id === lineUserId)?.display_name || null,
+        display_name: unlinked?.display_name || null,
+        picture_url: unlinked?.picture_url || null,
       }, { onConflict: "student_id" });
       if (connErr) { toast(connErr.message, "error"); return; }
 
@@ -424,18 +439,56 @@ export default function MessagingPage() {
     return (
       <div className="flex flex-col max-w-2xl mx-auto" style={{ height: "calc(100dvh - 130px)" }}>
         {/* Chat header */}
-        <div className="flex items-center gap-3 px-3 py-2.5 flex-shrink-0" style={{ background: LINE_GREEN }}>
-          <button onClick={() => { setChatStudentId(null); setMessageText(""); }} className="p-1.5 rounded-full hover:bg-white/10" style={{ minHeight: "auto" }}>
-            <ArrowLeftIcon className="w-5 h-5 text-white" />
-          </button>
-          <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
-            {(chatStudent.nick_name || chatStudent.first_name).charAt(0).toUpperCase()}
-          </div>
-          <div className="flex-1 min-w-0">
-            <span className="font-bold text-white text-sm block truncate">{chatDisplayName}</span>
-            <span className="text-[10px] text-white/70">{connections.find(c => c.student_id === chatStudentId)?.display_name || ""}</span>
-          </div>
-        </div>
+        {(() => {
+          const conn = connections.find(c => c.student_id === chatStudentId);
+          return (
+            <div className="flex items-center gap-3 px-3 py-2.5 flex-shrink-0" style={{ background: LINE_GREEN }}>
+              <button onClick={() => { setChatStudentId(null); setMessageText(""); setEditingName(false); }} className="p-1.5 rounded-full hover:bg-white/10" style={{ minHeight: "auto" }}>
+                <ArrowLeftIcon className="w-5 h-5 text-white" />
+              </button>
+              {conn?.picture_url ? (
+                <img src={conn.picture_url} alt="" className="w-9 h-9 rounded-full flex-shrink-0 object-cover" />
+              ) : (
+                <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+                  {(chatStudent.nick_name || chatStudent.first_name).charAt(0).toUpperCase()}
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <button onClick={() => { sessionStorage.setItem("messaging_returnToChat", chatStudentId!); nav(`/students/${chatStudentId}`); }}
+                  className="font-bold text-white text-sm block truncate hover:underline text-left" style={{ minHeight: "auto", background: "none", padding: 0 }}>
+                  {chatDisplayName}
+                </button>
+                <div className="flex items-center gap-1">
+                  {editingName ? (
+                    <input type="text" value={editNameValue}
+                      onChange={e => setEditNameValue(e.target.value)}
+                      onBlur={async () => {
+                        if (conn && editNameValue.trim() && editNameValue.trim() !== conn.display_name) {
+                          await supabase.from("line_connections").update({ display_name: editNameValue.trim() }).eq("id", conn.id);
+                          queryClient.invalidateQueries({ queryKey: ["line_connections"] });
+                        }
+                        setEditingName(false);
+                      }}
+                      onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                      autoFocus
+                      className="text-[11px] bg-white/20 text-white rounded px-1.5 py-0.5 outline-none w-32"
+                      style={{ minHeight: "auto" }} />
+                  ) : (
+                    <>
+                      <span className="text-[10px] text-white/70 truncate">{conn?.display_name || ""}</span>
+                      {conn && (
+                        <button onClick={() => { setEditingName(true); setEditNameValue(conn.display_name || ""); }}
+                          className="p-0.5 rounded hover:bg-white/10" style={{ minHeight: "auto" }}>
+                          <PencilSquareIcon className="w-3 h-3 text-white/50" />
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Chat body */}
         <div className="flex-1 overflow-y-auto px-3 py-4" style={{ background: `linear-gradient(180deg, ${CHAT_BG} 0%, #6B8C9E 100%)` }}>
@@ -691,19 +744,28 @@ export default function MessagingPage() {
                 onClick={() => { setChatStudentId(s.id); setMessageText(""); }}
                 className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-gray-50 active:bg-gray-100"
                 style={{ borderBottom: "1px solid #f0f0f0" }}>
-                <div className="w-12 h-12 rounded-full flex-shrink-0 flex items-center justify-center text-white font-bold text-lg"
-                  style={{ background: LINE_GREEN }}>
-                  {(s.nick_name || s.first_name).charAt(0).toUpperCase()}
-                </div>
+                {conn?.picture_url ? (
+                  <img src={conn.picture_url} alt="" className="w-12 h-12 rounded-full flex-shrink-0 object-cover" />
+                ) : (
+                  <div className="w-12 h-12 rounded-full flex-shrink-0 flex items-center justify-center text-white font-bold text-lg"
+                    style={{ background: LINE_GREEN }}>
+                    {(s.nick_name || s.first_name).charAt(0).toUpperCase()}
+                  </div>
+                )}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
-                    <span className="font-semibold text-sm truncate" style={{ color: POS.textPrimary }}>{displayName}</span>
+                    <div className="truncate">
+                      <span className="font-semibold text-sm" style={{ color: POS.textPrimary }}>{displayName}</span>
+                      {conn?.display_name && (
+                        <span className="text-[11px] ml-1.5" style={{ color: "#999" }}>· {conn.display_name}</span>
+                      )}
+                    </div>
                     <span className="text-[11px] flex-shrink-0 ml-2" style={{ color: "#a0a0a0" }}>
                       {lastMsg ? formatTime(lastMsg.created_at) : ""}
                     </span>
                   </div>
                   <p className="text-xs truncate mt-0.5" style={{ color: "#8e8e8e" }}>
-                    {lastMsg ? lastMsg.content : (conn?.display_name || t("lineLinked"))}
+                    {lastMsg ? lastMsg.content : t("lineLinked")}
                   </p>
                 </div>
               </button>

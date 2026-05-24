@@ -407,6 +407,7 @@ export default function StudentProfilePage() {
                       await supabase.from("line_connections").upsert({
                         student_id: id, line_user_id: selectedUnlinkedId,
                         display_name: u?.display_name || null,
+                        picture_url: u?.picture_url || null,
                       }, { onConflict: "student_id" });
                       await supabase.from("students").update({ parent_line_id: selectedUnlinkedId }).eq("id", id);
                       await supabase.from("unlinked_line_users").delete().eq("line_user_id", selectedUnlinkedId);
