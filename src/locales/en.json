@@ -537,5 +537,9 @@
   "linking": "Linking...",
   "accountLinked": "Account linked successfully!",
   "noUnlinkedAccounts": "No unlinked accounts",
-  "followedOn": "Followed"
+  "followedOn": "Followed",
+  "syncFollowers": "Sync",
+  "syncing": "Syncing...",
+  "syncComplete": "Sync complete",
+  "newAccountsFound": "new accounts found"
 }

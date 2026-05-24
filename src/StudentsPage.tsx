@@ -249,7 +249,7 @@ export default function StudentsPage() {
                 </div>
                 <div className="text-xs truncate" style={{ color: POS.textMuted }}>
                   {s.parent_phone && `${t("phone")}: ${s.parent_phone}`}
-                  {s.parent_line_id && ` | LINE: ${s.parent_line_id}`}
+                  {s.parent_line_id && ` | LINE: ✓`}
                 </div>
               </div>
 

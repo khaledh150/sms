@@ -41,7 +41,7 @@ export default function AdmissionsPage(_props: { publicMode?: boolean }) {
   const totalSteps = 3;
 
   const [nick, setNick] = useState(""); const [first, setFirst] = useState(""); const [last, setLast] = useState("");
-  const [dob, setDob] = useState(""); const [lineId, setLineId] = useState(""); const [phone, setPhone] = useState("");
+  const [dob, setDob] = useState(""); const [phone, setPhone] = useState("");
   // courseId -> { days, packageIdx }
   const [selections, setSelections] = useState<Record<string, CourseSelection>>({});
   const [hoursRemaining, setHoursRemaining] = useState<Record<string, number>>({});
@@ -152,7 +152,7 @@ export default function AdmissionsPage(_props: { publicMode?: boolean }) {
     if (role === "admin") {
       const { data: newStudent, error: insErr } = await supabase.from("students").insert([{
         nick_name: nick, first_name: first, last_name: last, dob: dob || null,
-        parent_line_id: lineId, parent_phone: phone,
+        parent_phone: phone,
         courses: slots, course_limits: limits,
         payment_receipt_urls: urls, joined_at: new Date().toISOString(), status: "active",
       }]).select().single();
@@ -184,7 +184,7 @@ export default function AdmissionsPage(_props: { publicMode?: boolean }) {
     } else {
       const { error: insErr } = await supabase.from("applications").insert([{
         nick_name: nick, first_name: first, last_name: last, dob: dob || null,
-        parent_line_id: lineId, parent_phone: phone,
+        parent_phone: phone,
         courses: slots, course_limits: limits, payment_receipt_urls: urls, status: "pending",
       }]);
       if (insErr) { setError(insErr.message); setSaving(false); return; }
@@ -277,11 +277,6 @@ export default function AdmissionsPage(_props: { publicMode?: boolean }) {
               <label className="text-xs font-semibold" style={{ color: POS.textSecondary }}>{t("phone")} *</label>
               <input type="tel" inputMode="numeric" className="w-full border rounded-xl px-4 py-3 mt-1 text-base" style={{ borderColor: POS.border, minHeight: POS.touchComfortable }}
                 value={phone} onChange={e => setPhone(e.target.value)} placeholder="08X-XXX-XXXX" />
-            </div>
-            <div>
-              <label className="text-xs font-semibold" style={{ color: POS.textSecondary }}>{t("lineAppId")}</label>
-              <input className="w-full border rounded-xl px-4 py-3 mt-1" style={{ borderColor: POS.border }}
-                value={lineId} onChange={e => setLineId(e.target.value)} placeholder="LINE User ID" />
             </div>
           </motion.div>
         )}
@@ -428,7 +423,6 @@ export default function AdmissionsPage(_props: { publicMode?: boolean }) {
             <div className="rounded-xl p-4 space-y-1" style={{ background: POS.bgMain }}>
               <div className="flex justify-between text-sm"><span style={{ color: POS.textSecondary }}>{t("nickName")}:</span><span className="font-bold">{nick} ({first} {last})</span></div>
               <div className="flex justify-between text-sm"><span style={{ color: POS.textSecondary }}>{t("phone")}:</span><span className="font-bold">{phone}</span></div>
-              {lineId && <div className="flex justify-between text-sm"><span style={{ color: POS.textSecondary }}>LINE:</span><span className="font-bold">{lineId}</span></div>}
             </div>
 
             {/* Course summaries */}

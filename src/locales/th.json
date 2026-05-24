@@ -536,5 +536,9 @@
   "linking": "กำลังเชื่อมต่อ...",
   "accountLinked": "เชื่อมต่อบัญชีเรียบร้อยแล้ว!",
   "noUnlinkedAccounts": "ไม่มีบัญชีที่ยังไม่ได้เชื่อมต่อ",
-  "followedOn": "เพิ่มเพื่อนเมื่อ"
+  "followedOn": "เพิ่มเพื่อนเมื่อ",
+  "syncFollowers": "ซิงค์",
+  "syncing": "กำลังซิงค์...",
+  "syncComplete": "ซิงค์เรียบร้อย",
+  "newAccountsFound": "บัญชีใหม่ที่พบ"
 }

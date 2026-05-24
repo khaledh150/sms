@@ -15,6 +15,7 @@ import {
   ArrowLeftIcon,
   LinkIcon,
   ChevronDownIcon,
+  ArrowPathIcon,
 } from "@heroicons/react/24/solid";
 import { motion } from "framer-motion";
 import { supabase } from "./supabaseClient";
@@ -174,6 +175,29 @@ export default function MessagingPage() {
   const [linkingId, setLinkingId] = useState<string | null>(null);
   const [unlinkedSearch, setUnlinkedSearch] = useState<Record<string, string>>({});
   const [dropdownOpen, setDropdownOpen] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+
+  async function handleSyncFollowers() {
+    if (!user?.school_id) return;
+    setSyncing(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(
+        `https://gsicrcogciklihyflhtc.supabase.co/functions/v1/sync-line-followers`,
+        { headers: { Authorization: `Bearer ${session?.access_token || ""}` } }
+      );
+      const data = await res.json();
+      if (res.ok) {
+        toast(`${t("syncComplete")}: ${data.newly_added} ${t("newAccountsFound")}`, "success");
+        queryClient.invalidateQueries({ queryKey: ["unlinked_line_users"] });
+      } else {
+        toast(data.error || "Sync failed", "error");
+      }
+    } catch (e: any) {
+      toast(e.message, "error");
+    }
+    setSyncing(false);
+  }
 
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -476,18 +500,28 @@ export default function MessagingPage() {
       )}
 
       {/* Unlinked LINE Accounts */}
-      {isAdmin && unlinkedUsers.length > 0 && (
+      {isAdmin && (
         <div className="mx-3 mt-3 rounded-2xl overflow-hidden shadow-sm" style={{ background: "#fff", border: "1px solid #e8e8e8" }}>
           <div className="px-4 py-3 flex items-center gap-2" style={{ background: "#FFF8E1", borderBottom: "1px solid #FFE082" }}>
             <LinkIcon className="w-4 h-4" style={{ color: "#F59E0B" }} />
             <div className="flex-1">
               <span className="text-sm font-bold" style={{ color: "#92400E" }}>{t("unlinkedLineAccounts")}</span>
-              <span className="text-[10px] font-bold ml-2 px-1.5 py-0.5 rounded-full" style={{ background: "#FDE68A", color: "#92400E" }}>
-                {unlinkedUsers.length}
-              </span>
+              {unlinkedUsers.length > 0 && (
+                <span className="text-[10px] font-bold ml-2 px-1.5 py-0.5 rounded-full" style={{ background: "#FDE68A", color: "#92400E" }}>
+                  {unlinkedUsers.length}
+                </span>
+              )}
             </div>
+            <button onClick={handleSyncFollowers} disabled={syncing}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold disabled:opacity-50"
+              style={{ background: "#FDE68A", color: "#92400E" }}>
+              <ArrowPathIcon className={`w-3.5 h-3.5 ${syncing ? "animate-spin" : ""}`} />
+              {syncing ? t("syncing") : t("syncFollowers")}
+            </button>
           </div>
-          <p className="text-[11px] px-4 pt-2 pb-1" style={{ color: "#999" }}>{t("unlinkedLineHint")}</p>
+          {unlinkedUsers.length > 0 && (
+            <p className="text-[11px] px-4 pt-2 pb-1" style={{ color: "#999" }}>{t("unlinkedLineHint")}</p>
+          )}
           <div className="divide-y" style={{ borderColor: "#f5f5f5" }}>
             {unlinkedUsers.map(u => {
               const selectedSid = linkSelections[u.line_user_id] || "";
@@ -584,6 +618,11 @@ export default function MessagingPage() {
               );
             })}
           </div>
+          {unlinkedUsers.length === 0 && (
+            <div className="py-4 text-center">
+              <p className="text-xs font-semibold" style={{ color: "#bbb" }}>{t("noUnlinkedAccounts")}</p>
+            </div>
+          )}
         </div>
       )}
 
