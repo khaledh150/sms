@@ -24,8 +24,10 @@ export default function LoginPage() {
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setErr(""); setLoading(true);
+    let loginEmail = email.trim().toLowerCase();
+    if (!loginEmail.includes("@")) loginEmail += "@wonderkids.local";
     const { error } = await supabase.auth.signInWithPassword({
-      email: email.trim().toLowerCase(), password: pw.trim(),
+      email: loginEmail, password: pw.trim(),
     });
     if (error) setErr(error.message);
     setLoading(false);
@@ -70,12 +72,12 @@ export default function LoginPage() {
 
             <form onSubmit={handleLogin} className="space-y-6">
               <div>
-                <label className="block text-sm font-bold mb-2 ml-3" style={{ color: POS.textSecondary }}>{t("email")}</label>
-                <input type="email" className="w-full bg-[#f8f9fc] border-[3px] border-transparent px-6 py-4 font-bold text-lg focus:outline-none transition-all shadow-inner"
+                <label className="block text-sm font-bold mb-2 ml-3" style={{ color: POS.textSecondary }}>{t("username")}</label>
+                <input type="text" className="w-full bg-[#f8f9fc] border-[3px] border-transparent px-6 py-4 font-bold text-lg focus:outline-none transition-all shadow-inner"
                   style={{ borderRadius: "1.5rem" }}
                   onFocus={e => { e.target.style.borderColor = POS.primaryLight; e.target.style.background = "#fff"; }}
                   onBlur={e => { e.target.style.borderColor = "transparent"; e.target.style.background = "#f8f9fc"; }}
-                  placeholder={t("emailPlaceholder")} value={email} onChange={e => setEmail(e.target.value)} required autoFocus />
+                  placeholder={t("usernamePlaceholder")} value={email} onChange={e => setEmail(e.target.value)} required autoFocus />
               </div>
               <div>
                 <label className="block text-sm font-bold mb-2 ml-3" style={{ color: POS.textSecondary }}>{t("password")}</label>

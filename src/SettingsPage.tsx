@@ -12,6 +12,7 @@ interface Profile {
   email: string | null;
   full_name: string | null;
   role: "admin" | "staff";
+  username: string | null;
 }
 
 export default function SettingsPage() {
@@ -30,6 +31,8 @@ export default function SettingsPage() {
   const [inviteRole, setInviteRole] = useState<"admin" | "staff">("staff");
   const [inviting, setInviting] = useState(false);
   const [editRow, setEditRow] = useState<Profile | null>(null);
+  const [editUsername, setEditUsername] = useState("");
+  const [editPassword, setEditPassword] = useState("");
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Profile | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -45,7 +48,7 @@ export default function SettingsPage() {
 
   async function refresh() {
     setLoading(true); setErr(null);
-    const { data, error } = await supabase.from("profiles").select("*").order("role", { ascending: false });
+    const { data, error } = await supabase.from("profiles").select("id,email,full_name,role,username").order("role", { ascending: false });
     if (error) setErr(error.message);
     else setProfiles(isAdmin ? (data as Profile[]) : (data as Profile[]).filter(p => p.id === user?.id));
     setLoading(false);
@@ -67,10 +70,23 @@ export default function SettingsPage() {
   async function saveEdits() {
     if (!editRow) return;
     setSaving(true);
-    const { error } = await supabase.from("profiles").update({ full_name: editRow.full_name, role: editRow.role }).eq("id", editRow.id);
-    if (error) toast(error.message, "error");
-    else { setEditRow(null); toast(t("userUpdated"), "success"); refresh(); }
-    setSaving(false);
+    try {
+      const { error } = await supabase.from("profiles").update({ full_name: editRow.full_name, role: editRow.role }).eq("id", editRow.id);
+      if (error) { toast(error.message, "error"); return; }
+
+      if (editUsername && editUsername !== (editRow.username || editRow.email?.split("@")[0])) {
+        const { error: unErr } = await supabase.rpc("update_staff_username", { p_user_id: editRow.id, p_new_username: editUsername });
+        if (unErr) { toast(unErr.message, "error"); return; }
+      }
+
+      if (editPassword) {
+        const { error: pwErr } = await supabase.rpc("update_staff_password", { p_user_id: editRow.id, p_new_password: editPassword });
+        if (pwErr) { toast(pwErr.message, "error"); return; }
+      }
+
+      setEditRow(null); setEditUsername(""); setEditPassword("");
+      toast(t("userUpdated"), "success"); refresh();
+    } finally { setSaving(false); }
   }
 
   async function handleCreateSchool(e: React.FormEvent) {
@@ -121,9 +137,7 @@ export default function SettingsPage() {
       {showInvite && isAdmin && (
         <div className="bg-white rounded-2xl p-5 mb-6 border" style={{ borderColor: POS.borderPurple, boxShadow: POS.shadowMd }}>
           <form onSubmit={handleInvite} className="grid gap-3 sm:grid-cols-2">
-            <input type="email" required placeholder={t("email")} value={inviteMail} onChange={e => setInviteMail(e.target.value)}
-              className="border rounded-xl px-4 py-3" style={{ borderColor: POS.border }} />
-            <input type="text" required placeholder={t("name")} value={inviteName} onChange={e => setInviteName(e.target.value)}
+            <input type="text" required placeholder={t("username")} value={inviteMail} onChange={e => setInviteMail(e.target.value)}
               className="border rounded-xl px-4 py-3" style={{ borderColor: POS.border }} />
             <div>
               <input type="password" required placeholder={t("tempPassword")} value={invitePw} onChange={e => setInvitePw(e.target.value)}
@@ -135,11 +149,11 @@ export default function SettingsPage() {
               <option value="staff">{t("roleStaff")}</option>
               <option value="admin">{t("roleAdmin")}</option>
             </select>
-            <div className="sm:col-span-2 flex justify-end">
+            <div className="flex items-end">
               <button disabled={inviting}
-                className="px-6 py-3 rounded-xl text-white font-bold disabled:opacity-50"
+                className="w-full px-6 py-3 rounded-xl text-white font-bold disabled:opacity-50"
                 style={{ background: POS.success }}>
-                {inviting ? t("inviting") : t("sendInvite")}
+                {inviting ? t("inviting") : t("addUser")}
               </button>
             </div>
           </form>
@@ -161,11 +175,11 @@ export default function SettingsPage() {
                 <div className="flex items-center gap-3 mb-2">
                   <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold"
                     style={{ background: p.role === "admin" ? POS.primary : POS.info }}>
-                    {(p.full_name || p.email || "?").charAt(0).toUpperCase()}
+                    {(p.full_name || p.username || p.email || "?").charAt(0).toUpperCase()}
                   </div>
                   <div>
-                    <h3 className="font-bold" style={{ color: POS.textPrimary }}>{p.full_name ?? "—"}</h3>
-                    <p className="text-xs" style={{ color: POS.textMuted }}>{p.email}</p>
+                    <h3 className="font-bold" style={{ color: POS.textPrimary }}>{p.full_name || p.username || "—"}</h3>
+                    <p className="text-xs" style={{ color: POS.textMuted }}>@{p.username || p.email?.split("@")[0]}</p>
                   </div>
                 </div>
                 <span className="inline-block text-xs font-semibold px-2 py-1 rounded-full"
@@ -174,7 +188,7 @@ export default function SettingsPage() {
                 </span>
               </div>
               <div className="flex gap-2 mt-4">
-                <button onClick={() => isAdmin && setEditRow(p)} disabled={!isAdmin}
+                <button onClick={() => { if (isAdmin) { setEditRow(p); setEditUsername(p.username || p.email?.split("@")[0] || ""); setEditPassword(""); } }} disabled={!isAdmin}
                   className="flex-1 flex items-center justify-center gap-1 py-2 rounded-xl border font-semibold text-sm transition"
                   style={{ borderColor: POS.border, color: POS.textSecondary, opacity: isAdmin ? 1 : 0.5 }}>
                   <PencilIcon className="w-4 h-4" /> {t("edit")}
@@ -195,18 +209,27 @@ export default function SettingsPage() {
       {/* Edit Modal */}
       {editRow && (
         <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.3)" }}
-          onClick={() => setEditRow(null)}>
+          onClick={() => { setEditRow(null); setEditUsername(""); setEditPassword(""); }}>
           <div className="bg-white rounded-2xl p-6 w-full max-w-md mx-4 space-y-4" style={{ boxShadow: POS.shadowXl }}
             onClick={e => e.stopPropagation()}>
             <h2 className="text-xl font-bold" style={{ color: POS.primary }}>{t("editUser")}</h2>
             <label className="block">
               <span className="text-sm font-semibold" style={{ color: POS.textSecondary }}>{t("name")}</span>
               <input value={editRow.full_name ?? ""} onChange={e => setEditRow({ ...editRow, full_name: e.target.value })}
-                className="w-full border rounded-xl px-4 py-3 mt-1" style={{ borderColor: POS.border }} />
+                className="w-full border rounded-xl px-4 py-3 mt-1" style={{ borderColor: POS.border }}
+                placeholder={t("optionalName")} />
             </label>
             <label className="block">
-              <span className="text-sm font-semibold" style={{ color: POS.textSecondary }}>{t("emailReadOnly")}</span>
-              <input value={editRow.email ?? ""} disabled className="w-full border rounded-xl px-4 py-3 mt-1 bg-gray-50" style={{ borderColor: POS.border }} />
+              <span className="text-sm font-semibold" style={{ color: POS.textSecondary }}>{t("username")}</span>
+              <input value={editUsername} onChange={e => setEditUsername(e.target.value)}
+                className="w-full border rounded-xl px-4 py-3 mt-1" style={{ borderColor: POS.border }}
+                placeholder={editRow.username || editRow.email?.split("@")[0] || ""} />
+            </label>
+            <label className="block">
+              <span className="text-sm font-semibold" style={{ color: POS.textSecondary }}>{t("newPassword")}</span>
+              <input type="password" value={editPassword} onChange={e => setEditPassword(e.target.value)}
+                className="w-full border rounded-xl px-4 py-3 mt-1" style={{ borderColor: POS.border }}
+                placeholder={t("leaveBlankToKeep")} />
             </label>
             {user?.id !== editRow.id && (
               <label className="block">
@@ -219,7 +242,7 @@ export default function SettingsPage() {
               </label>
             )}
             <div className="flex gap-3 pt-2">
-              <button onClick={() => setEditRow(null)} className="flex-1 py-3 rounded-xl border font-bold"
+              <button onClick={() => { setEditRow(null); setEditUsername(""); setEditPassword(""); }} className="flex-1 py-3 rounded-xl border font-bold"
                 style={{ borderColor: POS.border, color: POS.textSecondary }}>{t("cancel")}</button>
               <button onClick={saveEdits} disabled={saving} className="flex-1 py-3 rounded-xl text-white font-bold disabled:opacity-50"
                 style={{ background: POS.primary }}>{saving ? t("saving") : t("save")}</button>

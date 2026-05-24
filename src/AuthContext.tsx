@@ -12,6 +12,9 @@ export interface User {
   id: string;
   email: string | null;
   role: "admin" | "staff";
+  school_id: string | null;
+  full_name: string | null;
+  username: string | null;
 }
 
 /* ---------- context ---------- */
@@ -49,7 +52,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   async function loadProfile(supaUser: { id: string; email: string | null }) {
     const { data, error } = await supabase
       .from("profiles")
-      .select("role")
+      .select("role,school_id,full_name,username")
       .eq("id", supaUser.id)
       .single();
     if (error && error.code !== "PGRST116") {
@@ -61,6 +64,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       id: supaUser.id,
       email: supaUser.email,
       role: (data?.role as "admin" | "staff") ?? "staff",
+      school_id: data?.school_id ?? null,
+      full_name: data?.full_name ?? null,
+      username: data?.username ?? null,
     });
     setLoading(false);
   }

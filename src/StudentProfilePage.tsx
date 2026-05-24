@@ -107,8 +107,9 @@ export default function StudentProfilePage() {
   const [renewMode, setRenewMode] = useState<"renew" | "add">("renew");
   const [lateCheckInCourse, setLateCheckInCourse] = useState<string | null>(null);
   const [lateCheckInDate, setLateCheckInDate] = useState("");
-  const [lateCheckInTime, setLateCheckInTime] = useState("09:00");
   const [lateCheckInHours, setLateCheckInHours] = useState(1);
+  const [cancelTarget, setCancelTarget] = useState<{ enrollmentId: string; courseId: string } | null>(null);
+  const [cancelling, setCancelling] = useState(false);
 
   async function handleAddCourse() {
     setAddError("");
@@ -142,14 +143,40 @@ export default function StudentProfilePage() {
     queryClient.invalidateQueries({ queryKey: ["application_changes", "pending"] });
   }
 
-  async function handleCancelCourse(enrollmentId: string, courseId: string) {
+  async function handleCancelCourse() {
+    if (!cancelTarget) return;
+    const { enrollmentId, courseId } = cancelTarget;
     const courseName = courseMap[courseId]?.name || courseId;
-    if (!confirm(t("confirmCancelCourse", { course: courseName }))) return;
-    await supabase.from("enrollments").update({
-      status: "cancelled", cancelled_at: new Date().toISOString(), cancelled_by: user?.id || null
-    }).eq("id", enrollmentId);
-    toast(t("courseCancelled", { course: courseName }), "success");
-    queryClient.invalidateQueries({ queryKey: ["enrollments", id] });
+    setCancelling(true);
+
+    if (isAdmin) {
+      await supabase.from("enrollments").update({
+        status: "cancelled", cancelled_at: new Date().toISOString(), cancelled_by: user?.id || null
+      }).eq("id", enrollmentId);
+      toast(t("courseCancelled", { course: courseName }), "success");
+      queryClient.invalidateQueries({ queryKey: ["enrollments", id] });
+    } else {
+      await supabase.from("application_changes").insert({
+        student_id: student!.id,
+        type: "cancel_course",
+        status: "pending",
+        changes: { enrollment_id: enrollmentId, course_id: courseId, course_name: courseName },
+        submitted_by: user?.id,
+        nickname: student!.nick_name || null,
+        first_name: student!.first_name,
+        last_name: student!.last_name,
+      });
+      await supabase.from("notifications").insert({
+        student_id: student!.id,
+        type: "cancel_request",
+        payload: { course_name: courseName, student_name: student!.nick_name || student!.first_name },
+      });
+      toast(t("cancelRequestSent"), "success");
+      queryClient.invalidateQueries({ queryKey: ["application_changes", "pending"] });
+    }
+
+    setCancelling(false);
+    setCancelTarget(null);
   }
 
   async function handleLateCheckIn() {
@@ -157,7 +184,7 @@ export default function StudentProfilePage() {
     const selected = new Date(lateCheckInDate);
     if (selected > new Date()) { toast(t("lateCheckInMaxDays"), "error"); return; }
 
-    const ts = `${lateCheckInDate}T${lateCheckInTime}:00`;
+    const ts = `${lateCheckInDate}T09:00:00`;
     const inserts = Array.from({ length: lateCheckInHours }, () => ({
       student_id: student!.id, course_id: lateCheckInCourse,
       attended_at_ts: ts, approved_by: user.id,
@@ -439,7 +466,7 @@ export default function StudentProfilePage() {
                           style={{ background: POS.bgSurface, color: POS.primary }}>
                           <ClockIcon className="w-4 h-4" /> {t("lateCheckIn")}
                         </button>
-                        <button onClick={() => handleCancelCourse(enr.id, enr.course_id)}
+                        <button onClick={() => setCancelTarget({ enrollmentId: enr.id, courseId: enr.course_id })}
                           className="flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold"
                           style={{ background: POS.dangerLight, color: POS.danger }}>
                           <XMarkIcon className="w-4 h-4" /> {t("cancelCourse")}
@@ -715,6 +742,34 @@ export default function StudentProfilePage() {
         </Dialog.Panel>
       </Dialog>
 
+      {/* CANCEL COURSE MODAL */}
+      <Dialog open={!!cancelTarget} onClose={() => setCancelTarget(null)} className="relative z-50">
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm" aria-hidden="true" />
+        <div className="fixed inset-0 flex items-center justify-center p-4">
+          <Dialog.Panel className="bg-white rounded-[2rem] p-8 max-w-sm w-full mx-4 shadow-2xl text-center">
+            <XMarkIcon className="w-12 h-12 mx-auto mb-4" style={{ color: POS.danger }} />
+            <h2 className="text-xl font-bold mb-2" style={{ color: POS.textPrimary }}>
+              {t("cancelCourse")}
+            </h2>
+            <p className="text-sm mb-1 font-semibold" style={{ color: POS.primary }}>
+              {cancelTarget ? courseMap[cancelTarget.courseId]?.name : ""}
+            </p>
+            <p className="text-sm mb-6" style={{ color: POS.textMuted }}>
+              {isAdmin ? t("confirmCancelCourseAdmin") : t("confirmCancelCourseStaff")}
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => setCancelTarget(null)} className="flex-1 py-3 rounded-xl border font-bold"
+                style={{ borderColor: POS.border, color: POS.textSecondary }}>{t("cancel")}</button>
+              <button onClick={handleCancelCourse} disabled={cancelling}
+                className="flex-1 py-3 rounded-xl text-white font-bold disabled:opacity-50"
+                style={{ background: POS.danger }}>
+                {cancelling ? t("loading") : isAdmin ? t("cancelCourse") : t("sendRequest")}
+              </button>
+            </div>
+          </Dialog.Panel>
+        </div>
+      </Dialog>
+
       {/* LATE CHECK-IN MODAL */}
       <Dialog open={!!lateCheckInCourse} onClose={() => setLateCheckInCourse(null)} className="fixed z-50 inset-0 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.3)" }}>
         <Dialog.Panel className="bg-white rounded-2xl p-6 max-w-sm w-full mx-4" style={{ boxShadow: POS.shadowXl }}>
@@ -730,23 +785,16 @@ export default function StudentProfilePage() {
           <input type="date" className="w-full rounded-xl border px-3 py-3" style={{ borderColor: POS.border }}
             value={lateCheckInDate} onChange={e => setLateCheckInDate(e.target.value)}
             max={new Date().toISOString().split("T")[0]} />
-          <div className="flex gap-3 mt-3">
-            <div className="flex-1">
-              <label className="text-xs font-bold mb-1 block" style={{ color: POS.textSecondary }}>{t("approximateTime")}</label>
-              <input type="time" className="w-full rounded-xl border px-3 py-3" style={{ borderColor: POS.border }}
-                value={lateCheckInTime} onChange={e => setLateCheckInTime(e.target.value)} />
-            </div>
-            <div className="flex-1">
-              <label className="text-xs font-bold mb-1 block" style={{ color: POS.textSecondary }}>{t("hours")}</label>
-              <div className="flex gap-2">
-                {[1, 2, 3, 4].map(h => (
-                  <button key={h} onClick={() => setLateCheckInHours(h)}
-                    className="flex-1 py-3 rounded-xl text-sm font-bold"
-                    style={{ background: lateCheckInHours === h ? POS.primary : POS.bgSurface, color: lateCheckInHours === h ? "#fff" : POS.textPrimary }}>
-                    {h}h
-                  </button>
-                ))}
-              </div>
+          <div className="mt-3">
+            <label className="text-xs font-bold mb-1 block" style={{ color: POS.textSecondary }}>{t("hours")}</label>
+            <div className="flex gap-2">
+              {[1, 2, 3, 4].map(h => (
+                <button key={h} onClick={() => setLateCheckInHours(h)}
+                  className="flex-1 py-3 rounded-xl text-sm font-bold"
+                  style={{ background: lateCheckInHours === h ? POS.primary : POS.bgSurface, color: lateCheckInHours === h ? "#fff" : POS.textPrimary }}>
+                  {h}h
+                </button>
+              ))}
             </div>
           </div>
           <div className="flex gap-3 mt-5">

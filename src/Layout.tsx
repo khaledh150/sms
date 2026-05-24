@@ -50,7 +50,7 @@ export default function Layout() {
   const { t } = useTranslation();
   const nav = useNavigate();
   const loc = useLocation();
-  const { user } = useAuth();
+  const { user, setUser } = useAuth();
   const { toast } = useToast();
   const { data: pendingReviewCount = 0 } = usePendingReviewCount(true);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -378,7 +378,23 @@ export default function Layout() {
             <div className="bg-white/80 rounded-[3rem] shadow-2xl p-10 max-w-sm w-full mx-4 flex flex-col items-center glass-card border border-white/50"
               onClick={e => e.stopPropagation()}>
               <img src={profileUrl} alt="Profile" className="w-32 h-32 rounded-[2rem] mb-6 shadow-xl object-cover border-4 border-white" />
-              <input ref={fileInput as React.RefObject<HTMLInputElement>} type="file" accept="image/*" className="mb-6 text-sm font-bold text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" onChange={handleUpload} disabled={uploading} />
+              <input ref={fileInput as React.RefObject<HTMLInputElement>} type="file" accept="image/*" className="mb-4 text-sm font-bold text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" onChange={handleUpload} disabled={uploading} />
+
+              <div className="w-full mb-4">
+                <label className="text-xs font-bold mb-1 block text-center" style={{ color: POS.textMuted }}>{t("displayName")}</label>
+                <input type="text" defaultValue={user?.full_name || ""}
+                  onBlur={async (e) => {
+                    const val = e.target.value.trim();
+                    if (val !== (user?.full_name || "")) {
+                      await supabase.from("profiles").update({ full_name: val }).eq("id", user!.id);
+                      setUser({ ...user!, full_name: val });
+                      toast(t("saved"), "success");
+                    }
+                  }}
+                  className="w-full rounded-xl px-4 py-3 text-center font-bold border"
+                  style={{ borderColor: POS.borderLight, color: POS.textPrimary }}
+                  placeholder={user?.username || user?.email?.split("@")[0] || ""} />
+              </div>
 
               <button onClick={() => setShowProfileModal(false)} className="btn-gummy px-8 py-4 w-full rounded-[1.5rem] text-white font-bouncy text-xl shadow-lg" style={{ background: POS.primaryGradient }} disabled={uploading}>
                 {t("close")}

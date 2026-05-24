@@ -108,9 +108,7 @@ export default function HomePage() {
       if (!map.has(a.course_id)) map.set(a.course_id, { courseName: cName, entries: [] });
       const stu = studentMap.get(a.student_id);
       const name = stu ? (stu.nick_name && stu.first_name ? `${stu.nick_name} '${stu.first_name}'` : stu.nick_name || `${stu.first_name} ${stu.last_name}`) : a.student_id;
-      const d = new Date(a.attended_at_ts);
-      const time = isNaN(d.getTime()) ? "" : d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-      map.get(a.course_id)!.entries.push({ studentName: name, time, studentId: a.student_id });
+      map.get(a.course_id)!.entries.push({ studentName: name, time: "", studentId: a.student_id });
     });
     return Array.from(map.values());
   }, [todayAttendance, studentMap, courseNameMap]);
@@ -120,7 +118,7 @@ export default function HomePage() {
     feedByCourse.forEach(group => {
       text += `📚 ${group.courseName}\n`;
       group.entries.forEach(e => {
-        text += `  • ${e.studentName} (${e.time})\n`;
+        text += `  • ${e.studentName}\n`;
       });
       text += "\n";
     });
@@ -150,7 +148,7 @@ export default function HomePage() {
         <div className="relative z-10 text-center">
           <p className="text-white/70 text-xs font-extrabold tracking-[0.2em] uppercase mb-1">{school?.name || "Wonder Kids"}</p>
           <h1 className="text-2xl sm:text-3xl font-bouncy tracking-tight text-white drop-shadow-md">
-            {t("goodMorning")}, {user?.email?.split("@")[0] || "Admin"}
+            {t("goodMorning")}, {user?.full_name || user?.username || user?.email?.split("@")[0] || "Admin"}
           </h1>
         </div>
       </div>
@@ -225,7 +223,6 @@ export default function HomePage() {
                           onClick={() => nav(`/students/${entry.studentId}`)}
                           role="button">
                           <span className="font-bold" style={{ color: POS.textPrimary }}>{entry.studentName}</span>
-                          <span className="text-xs font-bold" style={{ color: POS.textMuted }}>{entry.time}</span>
                         </div>
                       ))}
                     </div>
