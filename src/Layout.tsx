@@ -206,8 +206,10 @@ export default function Layout() {
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
+    let initialHeight = vv.height;
     const onResize = () => {
-      const isKb = vv.height < window.innerHeight * 0.75;
+      if (vv.height > initialHeight) initialHeight = vv.height;
+      const isKb = vv.height < initialHeight * 0.85;
       setKeyboardOpen(isKb);
     };
     vv.addEventListener("resize", onResize);

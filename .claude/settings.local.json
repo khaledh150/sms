@@ -44,7 +44,12 @@
       "Bash(Get-ChildItem -Path \"C:\\\\Apps and Games Dev\\\\sme v1.2\\\\oldv sept\\\\sme 10 months ago\\\\sms-1d4e3ba5334b97b7a4656bd3418b94a228a387ca\" -Directory)",
       "Bash(Select-Object Name)",
       "Bash(ls -la \"C:\\\\Apps and Games Dev\\\\sme v1.2\\\\oldv sept\\\\sme 10 months ago\\\\sms-1d4e3ba5334b97b7a4656bd3418b94a228a387ca\" 2>/dev/null | head -20)",
-      "Read(//c/Apps and Games Dev/sme v1.2/oldv sept/sme 10 months ago/sms-1d4e3ba5334b97b7a4656bd3418b94a228a387ca/**)"
+      "Read(//c/Apps and Games Dev/sme v1.2/oldv sept/sme 10 months ago/sms-1d4e3ba5334b97b7a4656bd3418b94a228a387ca/**)",
+      "Bash(Get-ChildItem -Path . -Recurse -Depth 2)",
+      "Bash(Select-Object -First 50)",
+      "PowerShell(Get-ChildItem \"c:\\\\Apps and Games Dev\\\\sme\\\\supabase\\\\\" -Recurse -File | Where-Object { $_.Extension -match '\\\\.\\(ts|sql|json\\)$' -and $_.FullName -notmatch 'node_modules' } | Select-Object -ExpandProperty FullName)",
+      "PowerShell(Get-Process -Name node -ErrorAction SilentlyContinue)",
+      "Bash(curl -s \"https://gsicrcogciklihyflhtc.supabase.co/functions/v1/line-webhook\")"
     ]
   }
 }

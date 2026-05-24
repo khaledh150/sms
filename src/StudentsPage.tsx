@@ -1,5 +1,5 @@
 import { useMemo, useState, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { PlusIcon, MagnifyingGlassIcon } from "@heroicons/react/24/solid";
 import { ArrowUpTrayIcon, XMarkIcon } from "@heroicons/react/24/outline";
@@ -39,7 +39,9 @@ export default function StudentsPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [tab, setTab] = useState<Tab>("active");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = (searchParams.get("tab") === "inactive" ? "inactive" : "active") as Tab;
+  const setTab = useCallback((t: Tab) => setSearchParams(t === "active" ? {} : { tab: t }, { replace: true }), [setSearchParams]);
   const [search, setSearch] = useState("");
   const [visibleCount, setVisibleCount] = useState(50);
   const [importOpen, setImportOpen] = useState(false);

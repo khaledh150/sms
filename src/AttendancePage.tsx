@@ -516,12 +516,12 @@ function StudentGrid({ students, courseId, isHere, todayUsed, busyKey, onCheckIn
                 {totalUsed} / {purchased || "∞"} hrs
               </div>
 
-              {isOverlimit && !checked && (
+              {isOverlimit && (
                 <div className="text-[9px] font-extrabold mt-1 px-2 py-0.5 rounded-full" style={{ background: "#FEE2E2", color: "#DC2626" }}>
                   {t("renewalNeeded")}
                 </div>
               )}
-              {isApproaching && !isOverlimit && !checked && (
+              {isApproaching && !isOverlimit && (
                 <div className="text-[9px] font-extrabold mt-1 px-2 py-0.5 rounded-full" style={{ background: "#FFF7CD", color: "#D97706" }}>
                   {t("renewalApproaching")}
                 </div>

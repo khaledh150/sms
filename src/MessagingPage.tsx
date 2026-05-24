@@ -298,7 +298,7 @@ export default function MessagingPage() {
     });
 
     return (
-      <div className="flex flex-col max-w-2xl mx-auto" style={{ height: "calc(100dvh - 80px)" }}>
+      <div className="flex flex-col max-w-2xl mx-auto" style={{ height: "calc(100dvh - 130px)" }}>
         {/* Chat header */}
         <div className="flex items-center gap-3 px-3 py-2.5 flex-shrink-0" style={{ background: LINE_GREEN }}>
           <button onClick={() => { setChatStudentId(null); setMessageText(""); }} className="p-1.5 rounded-full hover:bg-white/10" style={{ minHeight: "auto" }}>
@@ -552,8 +552,24 @@ export default function MessagingPage() {
               </div>
             </div>
             {config && (
-              <div className="mt-5 pt-4 border-t space-y-2" style={{ borderColor: "#f0f0f0" }}>
-                <span className="text-xs font-bold" style={{ color: "#666" }}>{t("autoNotifications")}</span>
+              <div className="mt-5 pt-4 border-t space-y-3" style={{ borderColor: "#f0f0f0" }}>
+                {/* Webhook URL */}
+                <div>
+                  <label className="text-xs font-semibold block mb-1" style={{ color: "#666" }}>{t("webhookUrl")}</label>
+                  <p className="text-[10px] mb-1.5" style={{ color: "#999" }}>{t("webhookUrlHint")}</p>
+                  <div className="flex gap-2">
+                    <input type="text" readOnly
+                      value={`https://gsicrcogciklihyflhtc.supabase.co/functions/v1/line-webhook?school=${user?.school_id || ""}`}
+                      className="flex-1 border rounded-lg px-3 py-2 text-[11px] font-mono truncate" style={{ borderColor: "#e0e0e0", background: "#f9f9f9" }} />
+                    <button onClick={() => {
+                      navigator.clipboard.writeText(`https://gsicrcogciklihyflhtc.supabase.co/functions/v1/line-webhook?school=${user?.school_id || ""}`);
+                      toast(t("copied"), "success");
+                    }} className="px-3 py-2 rounded-lg text-xs font-bold text-white flex-shrink-0" style={{ background: LINE_GREEN }}>
+                      {t("copy")}
+                    </button>
+                  </div>
+                </div>
+                <span className="text-xs font-bold block" style={{ color: "#666" }}>{t("autoNotifications")}</span>
                 {autoToggles.map(opt => (
                   <div key={opt.key} className="flex items-center justify-between py-2.5 px-3 rounded-xl" style={{ background: "#f8f8f8" }}>
                     <div className="flex items-center gap-2">
