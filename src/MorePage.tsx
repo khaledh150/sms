@@ -8,6 +8,7 @@ import {
   ArrowRightOnRectangleIcon,
   GlobeAltIcon,
   ChatBubbleLeftRightIcon,
+  ShieldCheckIcon,
 } from "@heroicons/react/24/solid";
 import { supabase } from "./supabaseClient";
 import { useAuth } from "./AuthContext";
@@ -19,7 +20,9 @@ export default function MorePage() {
   const { t } = useTranslation();
   const nav = useNavigate();
   const { user } = useAuth();
-  const isAdmin = user?.role === "admin";
+  const isAdmin = user?.role === "owner" || user?.role === "admin" || user?.role === "superadmin";
+
+  const isSuperAdmin = user?.role === "superadmin";
 
   const items = [
     { label: t("courses"), icon: <BookOpenIcon className="w-6 h-6" />, path: "/courses", color: POS.primary },
@@ -28,6 +31,9 @@ export default function MorePage() {
       { label: t("billing"), icon: <CurrencyDollarIcon className="w-6 h-6" />, path: "/billing", color: POS.warning },
       { label: t("lineOa"), icon: <ChatBubbleLeftRightIcon className="w-6 h-6" />, path: "/messaging", color: "#06C755" },
       { label: t("settings"), icon: <Cog6ToothIcon className="w-6 h-6" />, path: "/settings", color: POS.textSecondary },
+    ] : []),
+    ...(isSuperAdmin ? [
+      { label: t("superAdmin"), icon: <ShieldCheckIcon className="w-6 h-6" />, path: "/admin", color: POS.primaryDark },
     ] : []),
   ];
 

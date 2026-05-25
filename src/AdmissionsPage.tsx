@@ -149,7 +149,7 @@ export default function AdmissionsPage(_props: { publicMode?: boolean }) {
       limits[cid] = pkg?.hours ?? 10;
     }
 
-    if (role === "admin") {
+    if (role === "owner" || role === "admin" || role === "superadmin") {
       const { data: newStudent, error: insErr } = await supabase.from("students").insert([{
         nick_name: nick, first_name: first, last_name: last, dob: dob || null,
         parent_phone: phone,
@@ -212,10 +212,10 @@ export default function AdmissionsPage(_props: { publicMode?: boolean }) {
           className="bg-white rounded-2xl px-8 py-12 max-w-md w-full text-center" style={{ boxShadow: POS.shadowXl }}>
           <CheckCircleIcon className="w-16 h-16 mx-auto mb-4" style={{ color: POS.success }} />
           <h2 className="text-2xl font-extrabold mb-2" style={{ color: POS.primary }}>
-            {role === "admin" ? (isExistingMode ? t("existingStudentAdded", { nick }) : t("studentAdded", { nick })) : t("applicationSubmitted")}
+            {(role === "owner" || role === "admin" || role === "superadmin") ? (isExistingMode ? t("existingStudentAdded", { nick }) : t("studentAdded", { nick })) : t("applicationSubmitted")}
           </h2>
           <p className="text-sm" style={{ color: POS.textSecondary }}>
-            {role === "admin" ? t("studentEnrolled") : t("staffWillContact")}
+            {(role === "owner" || role === "admin" || role === "superadmin") ? t("studentEnrolled") : t("staffWillContact")}
           </p>
           <button onClick={() => { setSubmitted(false); setStep(1); setNick(""); setFirst(""); setLast(""); setDob(""); setPhone(""); setSelections({}); setFiles([]); setHoursRemaining({}); }}
             className="mt-6 px-6 py-3 rounded-xl text-white font-bold" style={{ background: POS.primary }}>
@@ -507,7 +507,7 @@ export default function AdmissionsPage(_props: { publicMode?: boolean }) {
           <button onClick={handleSubmit} disabled={saving}
             className="flex-1 py-4 rounded-xl text-white font-bold text-lg disabled:opacity-50"
             style={{ background: POS.success, minHeight: POS.touchLarge }}>
-            {saving ? t("submittingBtn") : role === "admin" ? t("addStudent") : t("submitApplication")}
+            {saving ? t("submittingBtn") : (role === "owner" || role === "admin" || role === "superadmin") ? t("addStudent") : t("submitApplication")}
           </button>
         )}
       </div>

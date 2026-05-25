@@ -72,7 +72,7 @@ export default function Layout() {
   const loc = useLocation();
   const { user, setUser } = useAuth();
   const { toast } = useToast();
-  const isAdmin = user?.role === "admin";
+  const isAdmin = user?.role === "owner" || user?.role === "admin" || user?.role === "superadmin";
   const { data: pendingReviewCount = 0 } = usePendingReviewCount(isAdmin);
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -246,6 +246,25 @@ export default function Layout() {
 
       <div className="relative z-10 flex flex-col flex-1">
         <OfflineBanner />
+        {localStorage.getItem("sa_original_school_id") && (
+          <div className="w-full flex items-center justify-center gap-3 px-4 py-2 text-sm font-bold text-white"
+            style={{ background: POS.warning, zIndex: 50 }}>
+            <span>{t("saImpersonating")}</span>
+            <button onClick={async () => {
+              const originalSchoolId = localStorage.getItem("sa_original_school_id");
+              const uid = localStorage.getItem("sa_impersonate_uid");
+              if (uid && originalSchoolId) {
+                await supabase.from("profiles").update({ school_id: originalSchoolId }).eq("id", uid);
+              }
+              localStorage.removeItem("sa_original_school_id");
+              localStorage.removeItem("sa_impersonate_uid");
+              window.location.href = "/admin";
+            }}
+              className="px-3 py-1 rounded-lg text-xs font-bold bg-white" style={{ color: POS.warning }}>
+              {t("saReturnToAdmin")}
+            </button>
+          </div>
+        )}
         {/* TOP HEADER */}
         <header className="w-full flex items-center px-3 sm:px-6 py-2 glass sticky top-0 z-40 shadow-sm"
           style={{ borderBottom: `1px solid rgba(255,255,255,0.4)`, minHeight: 64 }}>

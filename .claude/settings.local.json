@@ -51,7 +51,18 @@
       "PowerShell(Get-Process -Name node -ErrorAction SilentlyContinue)",
       "Bash(curl -s \"https://gsicrcogciklihyflhtc.supabase.co/functions/v1/line-webhook\")",
       "Bash(curl -s -w \"\\\\nTime: %{time_total}s\\\\n\" \"https://gsicrcogciklihyflhtc.supabase.co/functions/v1/line-webhook?school=test\" -X POST -H \"Content-Type: application/json\" -d '{\"events\":[]}')",
-      "Bash(powershell -c \"Get-Content 'c:\\\\Apps and Games Dev\\\\sme\\\\src\\\\StudentProfilePage.tsx' | Measure-Object -Line | Select-Object -ExpandProperty Lines; Get-Content 'c:\\\\Apps and Games Dev\\\\sme\\\\src\\\\MessagingPage.tsx' | Measure-Object -Line | Select-Object -ExpandProperty Lines; Get-Content 'c:\\\\Apps and Games Dev\\\\sme\\\\src\\\\AttendancePage.tsx' | Measure-Object -Line | Select-Object -ExpandProperty Lines; Get-Content 'c:\\\\Apps and Games Dev\\\\sme\\\\src\\\\HomePage.tsx' | Measure-Object -Line | Select-Object -ExpandProperty Lines\")"
+      "Bash(powershell -c \"Get-Content 'c:\\\\Apps and Games Dev\\\\sme\\\\src\\\\StudentProfilePage.tsx' | Measure-Object -Line | Select-Object -ExpandProperty Lines; Get-Content 'c:\\\\Apps and Games Dev\\\\sme\\\\src\\\\MessagingPage.tsx' | Measure-Object -Line | Select-Object -ExpandProperty Lines; Get-Content 'c:\\\\Apps and Games Dev\\\\sme\\\\src\\\\AttendancePage.tsx' | Measure-Object -Line | Select-Object -ExpandProperty Lines; Get-Content 'c:\\\\Apps and Games Dev\\\\sme\\\\src\\\\HomePage.tsx' | Measure-Object -Line | Select-Object -ExpandProperty Lines\")",
+      "PowerShell(New-Item -ItemType Directory -Force \"c:\\\\Apps and Games Dev\\\\sme\\\\src\\\\features\\\\super-admin\")",
+      "WebSearch",
+      "Bash(cd \"c:\\\\Apps and Games Dev\\\\sme\" && wc -l \"C:\\\\Users\\\\khale\\\\.claude\\\\projects\\\\c--Apps-and-Games-Dev-sme\\\\1aad0aad-83bd-4b59-97d5-2c6ac2d8d785.jsonl\" 2>&1)",
+      "Read(//c/Users/khale/.claude/projects/c--Apps-and-Games-Dev-sme/**)",
+      "Bash(Get-Content \"C:\\\\Users\\\\khale\\\\.claude\\\\projects\\\\c--Apps-and-Games-Dev-sme\\\\1aad0aad-83bd-4b59-97d5-2c6ac2d8d785.jsonl\")",
+      "Bash(Select-String -Pattern \"SuperAdminDashboard\")",
+      "PowerShell($content = Get-Content \"C:\\\\Users\\\\khale\\\\.claude\\\\projects\\\\c--Apps-and-Games-Dev-sme\\\\1aad0aad-83bd-4b59-97d5-2c6ac2d8d785.jsonl\" -Raw; $lines = $content -split \"`n\"; $writeIndex = 0; foreach \\($line in $lines\\) { if \\($line -match '\"name\":\"Write\"' -and $line -match 'SuperAdminDashboard'\\) { Write-Host \"Found Write at line $writeIndex\"; } $writeIndex++; })",
+      "Bash(python3 -c ' *)",
+      "Bash(Select-String -Path \"C:\\\\Users\\\\khale\\\\.claude\\\\projects\\\\c--Apps-and-Games-Dev-sme\\\\1aad0aad-83bd-4b59-97d5-2c6ac2d8d785.jsonl\" -Pattern \"SchoolDetailModal\")",
+      "Bash(Select-Object -First 20)",
+      "mcp__claude_ai_Supabase__get_logs"
     ]
   }
 }

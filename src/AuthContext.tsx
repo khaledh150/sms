@@ -6,12 +6,13 @@ import React, {
   useContext,
 } from "react";
 import { supabase } from "./supabaseClient";
+import { queryClient } from "./queryClient";
 
 /* ---------- types ---------- */
 export interface User {
   id: string;
   email: string | null;
-  role: "admin" | "staff";
+  role: "superadmin" | "owner" | "admin" | "staff";
   school_id: string | null;
   full_name: string | null;
   username: string | null;
@@ -35,8 +36,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_OUT") {
+        queryClient.clear();
+      }
       if (session?.user) {
+        if (event === "SIGNED_IN") {
+          queryClient.clear();
+        }
         loadProfile({
           id: session.user.id,
           email: session.user.email ?? null,
@@ -63,7 +70,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser({
       id: supaUser.id,
       email: supaUser.email,
-      role: (data?.role as "admin" | "staff") ?? "staff",
+      role: (data?.role as "superadmin" | "owner" | "admin" | "staff") ?? "staff",
       school_id: data?.school_id ?? null,
       full_name: data?.full_name ?? null,
       username: data?.username ?? null,

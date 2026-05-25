@@ -26,15 +26,17 @@ export default function HomePage() {
   const nav = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
-  const isAdmin = user?.role === "admin";
+  const isAdmin = user?.role === "owner" || user?.role === "admin" || user?.role === "superadmin";
 
   const { data: school } = useQuery({
-    queryKey: ["my_school"],
+    queryKey: ["my_school", user?.school_id],
     queryFn: async () => {
-      const { data } = await supabase.from("schools").select("name").limit(1).single();
+      if (!user?.school_id) return null;
+      const { data } = await supabase.from("schools").select("name").eq("id", user.school_id).single();
       return data;
     },
     staleTime: 300_000,
+    enabled: !!user?.school_id,
   });
 
   const { data: reviewCount } = usePendingReviewCount(isAdmin);

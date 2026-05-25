@@ -1,7 +1,8 @@
 import "./i18n";
 import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { queryClient } from "./queryClient";
 import { ToastProvider } from "./hooks/useToast";
 
 /* ---------- PUBLIC ---------- */
@@ -19,9 +20,9 @@ function LegacyStudentRedirect() {
 
 /* ---------- CORE POS SCREENS (eagerly loaded) ---------- */
 import HomePage from "./HomePage";
-import AttendancePage from "./AttendancePage";
+import AttendancePage from "./features/attendance";
 import StudentsPage from "./StudentsPage";
-import StudentProfilePage from "./StudentProfilePage";
+import StudentProfilePage from "./features/student-profile";
 import MorePage from "./MorePage";
 
 /* ---------- SECONDARY / ADMIN SCREENS (lazy loaded) ---------- */
@@ -31,13 +32,10 @@ const CoursesPage = lazy(() => import("./CoursesPage"));
 const SettingsPage = lazy(() => import("./SettingsPage"));
 const BillingPage = lazy(() => import("./BillingPage"));
 const ReportsPage = lazy(() => import("./ReportsPage"));
-const MessagingPage = lazy(() => import("./MessagingPage"));
+const MessagingPage = lazy(() => import("./features/messaging"));
+const SuperAdminDashboard = lazy(() => import("./features/super-admin"));
+import SuperAdminRoute from "./features/super-admin/SuperAdminRoute";
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: { retry: 1, refetchOnWindowFocus: false },
-  },
-});
 
 function LazyFallback() {
   return (
@@ -81,6 +79,7 @@ export default function App() {
             <Route path="/billing" element={<AdminRoute><BillingPage /></AdminRoute>} />
             <Route path="/reports" element={<AdminRoute><ReportsPage /></AdminRoute>} />
             <Route path="/messaging" element={<AdminRoute><MessagingPage /></AdminRoute>} />
+            <Route path="/admin" element={<SuperAdminRoute><SuperAdminDashboard /></SuperAdminRoute>} />
 
             {/* Legacy redirects */}
             <Route path="/myschool/students" element={<Navigate to="/students" replace />} />

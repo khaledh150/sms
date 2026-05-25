@@ -11,7 +11,7 @@ interface Profile {
   id: string;
   email: string | null;
   full_name: string | null;
-  role: "admin" | "staff";
+  role: "superadmin" | "owner" | "admin" | "staff";
   username: string | null;
 }
 
@@ -19,7 +19,8 @@ export default function SettingsPage() {
   const { t } = useTranslation();
   const { user } = useAuth();
   const { toast } = useToast();
-  const isAdmin = user?.role === "admin";
+  const isOwner = user?.role === "owner" || user?.role === "superadmin";
+  const isAdmin = user?.role === "owner" || user?.role === "admin" || user?.role === "superadmin";
 
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(false);
@@ -37,20 +38,15 @@ export default function SettingsPage() {
   const [deleteTarget, setDeleteTarget] = useState<Profile | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const [showCreateSchool, setShowCreateSchool] = useState(false);
-  const [schoolName, setSchoolName] = useState("");
-  const [schoolAdminEmail, setSchoolAdminEmail] = useState("");
-  const [schoolAdminPw, setSchoolAdminPw] = useState("");
-  const [schoolAdminName, setSchoolAdminName] = useState("");
-  const [creatingSchool, setCreatingSchool] = useState(false);
-
   useEffect(() => { refresh(); }, []);
 
   async function refresh() {
     setLoading(true); setErr(null);
-    const { data, error } = await supabase.from("profiles").select("id,email,full_name,role,username").order("role", { ascending: false });
+    let query = supabase.from("profiles").select("id,email,full_name,role,username").order("role", { ascending: false });
+    if (user?.school_id) query = query.eq("school_id", user.school_id);
+    const { data, error } = await query;
     if (error) setErr(error.message);
-    else setProfiles(isAdmin ? (data as Profile[]) : (data as Profile[]).filter(p => p.id === user?.id));
+    else setProfiles(isAdmin ? (data as Profile[]).filter(p => p.role !== "superadmin") : (data as Profile[]).filter(p => p.id === user?.id) as Profile[]);
     setLoading(false);
   }
 
@@ -89,25 +85,10 @@ export default function SettingsPage() {
     } finally { setSaving(false); }
   }
 
-  async function handleCreateSchool(e: React.FormEvent) {
-    e.preventDefault(); setCreatingSchool(true); setErr(null);
-    const { error } = await supabase.rpc("create_school", {
-      p_school_name: schoolName.trim(),
-      p_admin_email: schoolAdminEmail.trim().toLowerCase(),
-      p_admin_password: schoolAdminPw,
-      p_admin_name: schoolAdminName.trim(),
-    });
-    if (error) setErr(error.message);
-    else {
-      setSchoolName(""); setSchoolAdminEmail(""); setSchoolAdminPw(""); setSchoolAdminName("");
-      setShowCreateSchool(false);
-      toast(t("schoolCreated"), "success");
-    }
-    setCreatingSchool(false);
-  }
-
   async function remove() {
-    if (!deleteTarget || deleteTarget.role === "admin") return;
+    if (!deleteTarget || deleteTarget.role === "superadmin") return;
+    if (user?.role !== "superadmin" && deleteTarget.role === "owner") return;
+    if (!isOwner && deleteTarget.role === "admin") return;
     setDeleting(true);
     await supabase.from("profiles").delete().eq("id", deleteTarget.id);
     setDeleteTarget(null);
@@ -147,7 +128,7 @@ export default function SettingsPage() {
             <select value={inviteRole} onChange={e => setInviteRole(e.target.value as any)}
               className="border rounded-xl px-4 py-3" style={{ borderColor: POS.border }}>
               <option value="staff">{t("roleStaff")}</option>
-              <option value="admin">{t("roleAdmin")}</option>
+              {isOwner && <option value="admin">{t("roleAdmin")}</option>}
             </select>
             <div className="flex items-end">
               <button disabled={inviting}
@@ -174,7 +155,7 @@ export default function SettingsPage() {
               <div>
                 <div className="flex items-center gap-3 mb-2">
                   <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold"
-                    style={{ background: p.role === "admin" ? POS.primary : POS.info }}>
+                    style={{ background: (p.role === "owner" || p.role === "admin" || p.role === "superadmin") ? POS.primary : POS.info }}>
                     {(p.full_name || p.username || p.email || "?").charAt(0).toUpperCase()}
                   </div>
                   <div>
@@ -183,17 +164,17 @@ export default function SettingsPage() {
                   </div>
                 </div>
                 <span className="inline-block text-xs font-semibold px-2 py-1 rounded-full"
-                  style={{ background: p.role === "admin" ? POS.bgSurface : POS.infoLight, color: p.role === "admin" ? POS.primary : POS.info }}>
+                  style={{ background: (p.role === "owner" || p.role === "admin" || p.role === "superadmin") ? POS.bgSurface : POS.infoLight, color: (p.role === "owner" || p.role === "admin" || p.role === "superadmin") ? POS.primary : POS.info }}>
                   {t("role_" + p.role)}
                 </span>
               </div>
               <div className="flex gap-2 mt-4">
-                <button onClick={() => { if (isAdmin) { setEditRow(p); setEditUsername(p.username || p.email?.split("@")[0] || ""); setEditPassword(""); } }} disabled={!isAdmin}
+                <button onClick={() => { const canEdit = isAdmin && (user?.role === "superadmin" || isOwner || p.role === "staff" || p.id === user?.id); if (canEdit) { setEditRow(p); setEditUsername(p.username || p.email?.split("@")[0] || ""); setEditPassword(""); } }} disabled={!isAdmin || (user?.role !== "superadmin" && !isOwner && p.role !== "staff" && p.id !== user?.id)}
                   className="flex-1 flex items-center justify-center gap-1 py-2 rounded-xl border font-semibold text-sm transition"
                   style={{ borderColor: POS.border, color: POS.textSecondary, opacity: isAdmin ? 1 : 0.5 }}>
                   <PencilIcon className="w-4 h-4" /> {t("edit")}
                 </button>
-                {isAdmin && p.role === "staff" && (
+                {isAdmin && p.role !== "superadmin" && p.id !== user?.id && (user?.role === "superadmin" || (isOwner && p.role !== "owner") || p.role === "staff") && (
                   <button onClick={() => setDeleteTarget(p)}
                     className="flex-1 flex items-center justify-center gap-1 py-2 rounded-xl border font-semibold text-sm"
                     style={{ borderColor: POS.danger + "44", color: POS.danger }}>
@@ -231,13 +212,14 @@ export default function SettingsPage() {
                 className="w-full border rounded-xl px-4 py-3 mt-1" style={{ borderColor: POS.border }}
                 placeholder={t("leaveBlankToKeep")} />
             </label>
-            {user?.id !== editRow.id && (
+            {user?.id !== editRow.id && isOwner && (
               <label className="block">
                 <span className="text-sm font-semibold" style={{ color: POS.textSecondary }}>{t("role")}</span>
                 <select value={editRow.role} onChange={e => setEditRow({ ...editRow, role: e.target.value as any })}
                   className="w-full border rounded-xl px-4 py-3 mt-1" style={{ borderColor: POS.border }}>
                   <option value="staff">{t("roleStaff")}</option>
                   <option value="admin">{t("roleAdmin")}</option>
+                  {user?.role === "superadmin" && <option value="owner">{t("roleOwner")}</option>}
                 </select>
               </label>
             )}
@@ -249,48 +231,6 @@ export default function SettingsPage() {
             </div>
           </div>
         </div>
-      )}
-
-      {/* Create School Section */}
-      {isAdmin && (
-        <>
-          <div className="flex justify-between items-center mt-10 mb-4">
-            <h2 className="text-lg font-bold" style={{ color: POS.textPrimary }}>{t("createSchool")}</h2>
-            <button onClick={() => setShowCreateSchool(v => !v)}
-              className="flex items-center gap-2 px-4 py-3 rounded-xl text-white font-bold text-sm transition"
-              style={{ background: POS.info, minHeight: POS.touchComfortable }}>
-              {showCreateSchool ? <><XMarkIcon className="w-5 h-5" />{t("close")}</>
-                : <><PlusCircleIcon className="w-5 h-5" />{t("createSchool")}</>}
-            </button>
-          </div>
-          <p className="text-sm mb-4" style={{ color: POS.textMuted }}>{t("createSchoolDesc")}</p>
-          {showCreateSchool && (
-            <div className="bg-white rounded-2xl p-5 mb-6 border" style={{ borderColor: POS.borderPurple, boxShadow: POS.shadowMd }}>
-              <form onSubmit={handleCreateSchool} className="grid gap-3 sm:grid-cols-2">
-                <div className="sm:col-span-2">
-                  <input type="text" required placeholder={t("schoolName")} value={schoolName} onChange={e => setSchoolName(e.target.value)}
-                    className="border rounded-xl px-4 py-3 w-full" style={{ borderColor: POS.border }} />
-                </div>
-                <input type="text" required placeholder={t("schoolAdminName")} value={schoolAdminName} onChange={e => setSchoolAdminName(e.target.value)}
-                  className="border rounded-xl px-4 py-3" style={{ borderColor: POS.border }} />
-                <input type="email" required placeholder={t("schoolAdminEmail")} value={schoolAdminEmail} onChange={e => setSchoolAdminEmail(e.target.value)}
-                  className="border rounded-xl px-4 py-3" style={{ borderColor: POS.border }} />
-                <div>
-                  <input type="password" required placeholder={t("schoolAdminPassword")} value={schoolAdminPw} onChange={e => setSchoolAdminPw(e.target.value)}
-                    className="border rounded-xl px-4 py-3 w-full" style={{ borderColor: POS.border }} />
-                  <p className="text-xs mt-1" style={{ color: POS.textMuted }}>{t("minPasswordLength")}</p>
-                </div>
-                <div className="flex items-end">
-                  <button disabled={creatingSchool}
-                    className="w-full px-6 py-3 rounded-xl text-white font-bold disabled:opacity-50"
-                    style={{ background: POS.info }}>
-                    {creatingSchool ? t("loading") : t("createSchool")}
-                  </button>
-                </div>
-              </form>
-            </div>
-          )}
-        </>
       )}
 
       {/* Delete Confirmation Dialog */}

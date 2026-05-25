@@ -25,7 +25,7 @@ export default function LoginPage() {
     e.preventDefault();
     setErr(""); setLoading(true);
     let loginEmail = email.trim().toLowerCase();
-    if (!loginEmail.includes("@")) loginEmail += "@wonderkids.local";
+    if (!loginEmail.includes("@")) loginEmail += "@school.local";
     const { error } = await supabase.auth.signInWithPassword({
       email: loginEmail, password: pw.trim(),
     });

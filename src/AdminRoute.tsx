@@ -5,6 +5,6 @@ import { useAuth } from "./AuthContext";
 export default function AdminRoute({ children }: { children: ReactNode }): ReactNode {
   const { user, loading } = useAuth();
   if (loading) return null;
-  if (user?.role !== "admin") return <Navigate to="/dashboard" replace />;
+  if (user?.role !== "owner" && user?.role !== "admin" && user?.role !== "superadmin") return <Navigate to="/dashboard" replace />;
   return children;
 }
