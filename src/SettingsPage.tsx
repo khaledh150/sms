@@ -46,7 +46,12 @@ export default function SettingsPage() {
     if (user?.school_id) query = query.eq("school_id", user.school_id);
     const { data, error } = await query;
     if (error) setErr(error.message);
-    else setProfiles(isAdmin ? (data as Profile[]).filter(p => p.role !== "superadmin") : (data as Profile[]).filter(p => p.id === user?.id) as Profile[]);
+    else {
+      let filtered = (data as Profile[]).filter(p => p.role !== "superadmin");
+      if (!isAdmin) filtered = filtered.filter(p => p.id === user?.id);
+      else if (!isOwner) filtered = filtered.filter(p => p.role !== "owner");
+      setProfiles(filtered);
+    }
     setLoading(false);
   }
 

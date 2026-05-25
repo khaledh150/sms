@@ -94,6 +94,29 @@ export async function fetchExpectedToday() {
   return (data ?? []) as ExpectedStudent[];
 }
 
+export interface RenewalStudent {
+  enrollment_id: string;
+  student_id: string;
+  course_id: string;
+  purchased_hours: number;
+  first_name: string;
+  last_name: string;
+  nick_name: string | null;
+  course_name: string;
+  hours_used: number;
+  hours_remaining: number;
+}
+
+export async function fetchRenewalStudents() {
+  const { data, error } = await supabase
+    .from("renewal_students")
+    .select("*")
+    .lte("hours_remaining", 2)
+    .order("hours_remaining");
+  if (error) throw error;
+  return (data ?? []) as RenewalStudent[];
+}
+
 // Fetch enrolled students for a course
 export async function fetchStudentsForCourse(courseId: string) {
   const { data, error } = await supabase

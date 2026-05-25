@@ -14,7 +14,7 @@ import {
 } from "@heroicons/react/24/solid";
 import { useAuth } from "./AuthContext";
 import { usePendingReviewCount } from "./hooks/useApplications";
-import { useExpectedToday, useStudents } from "./hooks/useStudents";
+import { useExpectedToday, useStudents, useRenewalStudents } from "./hooks/useStudents";
 import { POS } from "./theme";
 import { supabase } from "./supabaseClient";
 import { todayStr } from "./services/attendance";
@@ -42,6 +42,7 @@ export default function HomePage() {
   const { data: reviewCount } = usePendingReviewCount(isAdmin);
   const { data: expected = [] } = useExpectedToday();
   const { data: students = [] } = useStudents();
+  const { data: renewalStudents = [] } = useRenewalStudents();
   const queryClient = useQueryClient();
 
   // Today's approved check-ins with full details for the feed
@@ -82,16 +83,16 @@ export default function HomePage() {
     return Array.from(map.values());
   }, [expected, checkedInIds]);
 
-  // Overlimit students
+  // Overlimit students (all active enrollments, not just today's schedule)
   const overlimitStudents = useMemo(() =>
-    expected.filter(s => s.purchased_hours > 0 && s.hours_remaining <= 0),
-    [expected]
+    renewalStudents.filter(s => s.hours_remaining <= 0),
+    [renewalStudents]
   );
 
-  // Approaching renewal (2 hours or fewer remaining)
+  // Approaching renewal (2 hours or fewer remaining, all active enrollments)
   const approachingStudents = useMemo(() =>
-    expected.filter(s => s.purchased_hours > 0 && s.hours_remaining > 0 && s.hours_remaining <= 2),
-    [expected]
+    renewalStudents.filter(s => s.hours_remaining > 0 && s.hours_remaining <= 2),
+    [renewalStudents]
   );
 
   // Daily check-in feed grouped by course

@@ -10,6 +10,7 @@ import {
   fetchStudentNotes,
   fetchExpectedToday,
   fetchAllEnrolledStudents,
+  fetchRenewalStudents,
 } from "../services/students";
 
 export function useStudents(activeOnly = true) {
@@ -77,5 +78,13 @@ export function useAllEnrolledStudents() {
     queryKey: ["all_enrolled_students"],
     queryFn: fetchAllEnrolledStudents,
     staleTime: STALE.FAST,
+  });
+}
+
+export function useRenewalStudents() {
+  return useQuery({
+    queryKey: ["renewal_students"],
+    queryFn: fetchRenewalStudents,
+    staleTime: STALE.NORMAL,
   });
 }

@@ -62,7 +62,8 @@
       "Bash(python3 -c ' *)",
       "Bash(Select-String -Path \"C:\\\\Users\\\\khale\\\\.claude\\\\projects\\\\c--Apps-and-Games-Dev-sme\\\\1aad0aad-83bd-4b59-97d5-2c6ac2d8d785.jsonl\" -Pattern \"SchoolDetailModal\")",
       "Bash(Select-Object -First 20)",
-      "mcp__claude_ai_Supabase__get_logs"
+      "mcp__claude_ai_Supabase__get_logs",
+      "Bash(Get-ChildItem -Path \"c:\\\\Apps and Games Dev\\\\sme\" -Recurse -Filter \"HomePage*\")"
     ]
   }
 }
