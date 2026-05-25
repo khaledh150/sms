@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import {
-  XMarkIcon, PencilIcon, UsersIcon, AcademicCapIcon, BuildingOffice2Icon,
+  XMarkIcon, PencilIcon, UsersIcon, BuildingOffice2Icon,
   CheckCircleIcon, ExclamationTriangleIcon, ArchiveBoxIcon,
   TrashIcon, KeyIcon, ShieldCheckIcon, ClockIcon, PlusCircleIcon,
   CheckIcon, XCircleIcon, EyeIcon,
@@ -326,7 +326,7 @@ export default function SchoolDetailModal({ school, onClose, onStatusChange }: P
     } finally { setAddingMember(false); }
   }
 
-  const timeAgo = (d: string | null) => {
+  const timeAgo = (d: string | null | undefined) => {
     if (!d) return t("saNeverLoggedIn");
     const diff = Date.now() - new Date(d).getTime();
     const mins = Math.floor(diff / 60000);

@@ -322,7 +322,7 @@ export default function StudentProfilePage() {
                 const w = window.open("");
                 if (w) {
                   const img = w.document.createElement("img");
-                  img.src = student.qr_code_url;
+                  img.src = student.qr_code_url!;
                   img.onload = () => { w.print(); w.close(); };
                   w.document.body.appendChild(img);
                 }

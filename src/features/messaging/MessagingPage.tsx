@@ -11,7 +11,6 @@ import { useAuth } from "../../AuthContext";
 import { useCourses } from "../../hooks/useCourses";
 import { useStudents } from "../../hooks/useStudents";
 import { useTranslation } from "react-i18next";
-import { POS } from "../../theme";
 
 import { useLineConfig, useLineMessages, useLineConnections, useEnrollments, useUnlinkedLineUsers } from "./hooks";
 import ChatView from "./ChatView";

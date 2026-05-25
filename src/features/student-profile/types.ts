@@ -6,9 +6,9 @@ export interface StudentData {
   dob: string | null;
   parent_phone: string | null;
   parent_line_id: string | null;
-  qr_code_url: string;
+  qr_code_url: string | null;
   joined_at: string | null;
-  status: string;
+  status: string | null;
 }
 
 export interface EnrollmentData {
@@ -32,7 +32,7 @@ export interface CourseData {
 export interface AttendanceRecord {
   id: string;
   student_id: string;
-  course_id: string;
+  course_id: string | null;
   attended_at_ts: string;
   approved_by: string | null;
 }

@@ -31,7 +31,7 @@ export default function WalkInSearch({ onCheckIn }: Props) {
     return () => { cancelled = true; };
   }, [debouncedSearch]);
 
-  async function walkInCheckIn(studentId: string, studentName: string) {
+  async function walkInCheckIn(studentId: string, _studentName: string) {
     const { data, error } = await supabase.from("attendance")
       .insert({ student_id: studentId, course_id: null, attended_at_ts: new Date().toISOString() }).select();
     if (!error && data) {
