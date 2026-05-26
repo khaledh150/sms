@@ -38,7 +38,13 @@ function HeaderClock() {
   }, []);
   return (
     <div className="flex flex-col items-center mx-auto">
-      <span className="text-xs font-extrabold uppercase tracking-widest text-[#7C8DB0] md:hidden">
+      <span className="text-[10px] font-extrabold uppercase tracking-wide text-[#7C8DB0] sm:hidden">
+        {time.toLocaleDateString([], { weekday: 'short' })}
+      </span>
+      <span className="text-[10px] font-extrabold uppercase tracking-wide text-[#7C8DB0] sm:hidden">
+        {time.toLocaleDateString([], { month: 'short', day: 'numeric' })}
+      </span>
+      <span className="text-xs font-extrabold uppercase tracking-widest text-[#7C8DB0] hidden sm:block md:hidden">
         {time.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}
       </span>
       <span className="text-xl font-bouncy tracking-wide hidden md:block" style={{ color: POS.primaryDark }}>
@@ -272,7 +278,7 @@ export default function Layout() {
             {/* Bell with notifications dropdown */}
             <div ref={bellRef} className="relative">
               <button onClick={() => setShowNotifications(!showNotifications)}
-                className="relative p-2 rounded-[1rem] transition hover:bg-white hover:shadow-sm btn-gummy-sm min-w-[48px] min-h-[48px] flex items-center justify-center" aria-label="Notifications">
+                className="relative p-1.5 sm:p-2 rounded-[1rem] transition hover:bg-white hover:shadow-sm btn-gummy-sm min-w-[36px] sm:min-w-[48px] min-h-[36px] sm:min-h-[48px] flex items-center justify-center" aria-label="Notifications">
                 <BellSolid className="w-6 h-6" style={{ color: POS.primary }} />
                 {unreadCount > 0 && (
                   <span className="absolute -top-1 -right-1 text-white text-[10px] font-bold rounded-full h-5 w-5 flex items-center justify-center" style={{ background: POS.danger }}>
@@ -329,7 +335,7 @@ export default function Layout() {
               )}
             </div>
 
-            <button onClick={toggleFullscreen} className="p-2 rounded-[1rem] hover:bg-white hover:shadow-sm transition-all btn-gummy-sm min-w-[48px] min-h-[48px] flex items-center justify-center" style={{ color: POS.textSecondary }} aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}>
+            <button onClick={toggleFullscreen} className="p-1.5 sm:p-2 rounded-[1rem] hover:bg-white hover:shadow-sm transition-all btn-gummy-sm min-w-[36px] sm:min-w-[48px] min-h-[36px] sm:min-h-[48px] flex items-center justify-center" style={{ color: POS.textSecondary }} aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}>
               {isFullscreen ? <ArrowsPointingInIcon className="w-5 h-5 sm:w-6 sm:h-6" /> : <ArrowsPointingOutIcon className="w-5 h-5 sm:w-6 sm:h-6" />}
             </button>
 

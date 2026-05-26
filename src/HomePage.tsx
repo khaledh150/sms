@@ -285,7 +285,7 @@ export default function HomePage() {
                         <span className="font-bouncy text-base leading-tight block truncate" style={{ color: POS.textPrimary }}>
                           {s.nick_name || s.first_name}{s.nick_name && s.first_name ? ` '${s.first_name}'` : ""}
                         </span>
-                        <span className="font-bold text-xs" style={{ color: POS.warningAccent }}>{s.course_name} — {s.hours_remaining} {t("hrsLeft")}</span>
+                        <span className="font-bold text-xs" style={{ color: POS.warningAccent }}>{s.course_name} — {s.hours_used}/{s.purchased_hours} {t("hrs")}</span>
                       </div>
                     </motion.div>
                   ))}
