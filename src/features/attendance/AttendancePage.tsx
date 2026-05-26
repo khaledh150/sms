@@ -16,6 +16,7 @@ import HourPickerModal from "./HourPickerModal";
 import StudentGrid from "./StudentGrid";
 import WalkInSearch from "./WalkInSearch";
 import CourseGroupSection from "./CourseGroupSection";
+import ConfirmDialog from "../../components/ConfirmDialog";
 import type { StudentForGrid, CourseGroup } from "./types";
 
 export default function AttendancePage() {
@@ -26,6 +27,7 @@ export default function AttendancePage() {
   const [scanResult, setScanResult] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [busyKey, setBusy] = useState("");
   const [hourPicker, setHourPicker] = useState<{ stu: StudentForGrid; cid: string } | null>(null);
+  const [overlimitConfirm, setOverlimitConfirm] = useState<{ stu: StudentForGrid; cid: string; message: string } | null>(null);
 
   const { data: allEnrolled = [] } = useAllEnrolledStudents();
   const [rows, setRows] = useState<AttendanceRow[]>([]);
@@ -139,7 +141,8 @@ export default function AttendancePage() {
       const totalUsed = (allTimeHours.get(`${stu.student_id}|${cid}`) || 0) + (stu.initial_used_hours || 0);
       if (stu.purchased_hours > 0 && totalUsed >= stu.purchased_hours) {
         const name = stu.nick_name || stu.first_name;
-        if (!confirm(t("overlimitConfirm", { name, used: totalUsed, purchased: stu.purchased_hours }))) return;
+        setOverlimitConfirm({ stu, cid, message: t("overlimitConfirm", { name, used: totalUsed, purchased: stu.purchased_hours }) });
+        return;
       }
     }
 
@@ -237,6 +240,18 @@ export default function AttendancePage() {
         picker={hourPicker}
         onConfirm={confirmCheckIn}
         onClose={() => setHourPicker(null)}
+      />
+      <ConfirmDialog
+        open={!!overlimitConfirm}
+        onClose={() => setOverlimitConfirm(null)}
+        onConfirm={() => {
+          if (overlimitConfirm) setHourPicker({ stu: overlimitConfirm.stu, cid: overlimitConfirm.cid });
+          setOverlimitConfirm(null);
+        }}
+        title={t("overlimitTitle")}
+        message={overlimitConfirm?.message || ""}
+        confirmLabel={t("continueCheckIn")}
+        variant="warning"
       />
 
       {/* HEADER */}

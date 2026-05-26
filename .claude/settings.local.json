@@ -80,7 +80,8 @@
       "PowerShell(New-Item -ItemType Directory -Force \"c:\\\\Apps and Games Dev\\\\sme\\\\src\\\\types\")",
       "PowerShell(New-Item -ItemType Directory -Force \"c:\\\\Apps and Games Dev\\\\sme\\\\src\\\\utils\")",
       "Bash(Get-ChildItem -Path \"c:\\\\Apps and Games Dev\\\\sme\\\\src\" -Recurse -Filter \"*.tsx\")",
-      "Bash(Select-Object -ExpandProperty FullName)"
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(Get-ChildItem -Recurse -Filter \"*.tsx\")"
     ],
     "additionalDirectories": [
       "c:\\Apps and Games Dev\\sme\\src"

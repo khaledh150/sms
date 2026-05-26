@@ -364,8 +364,8 @@ export default function Layout() {
               <Icon className="w-6 h-6 mb-0.5" />
               <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider">{t(tab.label)}</span>
               {showBadge && (
-                <span className="absolute top-1 right-[calc(50%-14px)] text-white text-[9px] font-bold rounded-full h-4 w-4 flex items-center justify-center" style={{ background: POS.danger }}>
-                  {pendingReviewCount > 9 ? "9+" : pendingReviewCount}
+                <span className="absolute -top-0.5 right-[calc(50%-18px)] text-white text-[9px] font-bold rounded-full h-5 w-5 flex items-center justify-center" style={{ background: POS.danger }}>
+                  {pendingReviewCount > 99 ? "99+" : pendingReviewCount}
                 </span>
               )}
             </button>

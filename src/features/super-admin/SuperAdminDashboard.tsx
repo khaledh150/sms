@@ -14,6 +14,8 @@ import {
   ClockIcon,
   ChatBubbleLeftRightIcon,
   ChartBarIcon,
+  Cog6ToothIcon,
+  KeyIcon,
 } from "@heroicons/react/24/solid";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -28,6 +30,8 @@ import SchoolDetailModal from "./SchoolDetailModal";
 
 import type { SchoolHealth, SuperAdminAuditEntry as AuditEntry } from "./types";
 import { timeAgo as sharedTimeAgo } from "../../utils/time";
+import { useAuth } from "../../AuthContext";
+import { Dialog } from "@headlessui/react";
 
 interface SchoolForm {
   name: string;
@@ -68,6 +72,11 @@ export default function SuperAdminDashboard() {
   const [form, setForm] = useState<SchoolForm>(EMPTY_FORM);
   const [detailSchool, setDetailSchool] = useState<SchoolHealth | null>(null);
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "suspended" | "archived">("all");
+  const { user } = useAuth();
+  const [showAccountSettings, setShowAccountSettings] = useState(false);
+  const [acctUsername, setAcctUsername] = useState("");
+  const [acctPassword, setAcctPassword] = useState("");
+  const [acctSaving, setAcctSaving] = useState(false);
 
   const { data: schools = [], isLoading } = useQuery({
     queryKey: ["superadmin_schools"],
@@ -230,6 +239,25 @@ export default function SuperAdminDashboard() {
     return Math.round((items.filter(Boolean).length / items.length) * 100);
   };
 
+  async function handleSaveAccount() {
+    if (!user?.id) return;
+    setAcctSaving(true);
+    try {
+      if (acctUsername) {
+        const { error } = await supabase.rpc("update_staff_username", { p_user_id: user.id, p_new_username: acctUsername });
+        if (error) { toast(error.message, "error"); return; }
+      }
+      if (acctPassword) {
+        const { error } = await supabase.rpc("update_staff_password", { p_user_id: user.id, p_new_password: acctPassword });
+        if (error) { toast(error.message, "error"); return; }
+      }
+      toast(t("accountUpdated"), "success");
+      setShowAccountSettings(false);
+      setAcctPassword("");
+    } catch (e: any) { toast(e.message, "error"); }
+    finally { setAcctSaving(false); }
+  }
+
   const timeAgo = (dateStr: string | null) => {
     if (!dateStr) return t("saNeverLoggedIn");
     return sharedTimeAgo(dateStr);
@@ -245,12 +273,20 @@ export default function SuperAdminDashboard() {
           </h1>
           <p className="text-sm mt-1" style={{ color: POS.textMuted }}>{t("superAdminDesc")}</p>
         </div>
-        <motion.button whileTap={{ scale: 0.97 }} onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 px-5 py-3 rounded-xl text-white font-bold text-sm"
-          style={{ background: POS.primary, minHeight: POS.touchComfortable }}>
-          <PlusCircleIcon className="w-5 h-5" />
-          {t("createSchool")}
-        </motion.button>
+        <div className="flex gap-2">
+          <motion.button whileTap={{ scale: 0.97 }} onClick={() => { setAcctUsername(user?.username || ""); setAcctPassword(""); setShowAccountSettings(true); }}
+            className="flex items-center gap-2 px-4 py-3 rounded-xl font-bold text-sm border"
+            style={{ borderColor: POS.border, color: POS.textSecondary, minHeight: POS.touchComfortable }}>
+            <Cog6ToothIcon className="w-5 h-5" />
+            {t("account")}
+          </motion.button>
+          <motion.button whileTap={{ scale: 0.97 }} onClick={() => setShowCreate(true)}
+            className="flex items-center gap-2 px-5 py-3 rounded-xl text-white font-bold text-sm"
+            style={{ background: POS.primary, minHeight: POS.touchComfortable }}>
+            <PlusCircleIcon className="w-5 h-5" />
+            {t("createSchool")}
+          </motion.button>
+        </div>
       </div>
 
       {/* Stats Row */}
@@ -495,6 +531,42 @@ export default function SuperAdminDashboard() {
           )}
         </div>
       </div>
+
+      {/* Account Settings Modal */}
+      <Dialog open={showAccountSettings} onClose={() => setShowAccountSettings(false)} className="fixed z-50 inset-0 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.3)" }}>
+        <Dialog.Panel className="bg-white rounded-2xl p-6 max-w-sm w-full mx-4" style={{ boxShadow: POS.shadowXl }}>
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: POS.primaryLight }}>
+              <KeyIcon className="w-5 h-5" style={{ color: POS.primary }} />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold" style={{ color: POS.textPrimary }}>{t("accountSettings")}</h2>
+              <p className="text-xs" style={{ color: POS.textMuted }}>{user?.email}</p>
+            </div>
+          </div>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs font-bold mb-1 block" style={{ color: POS.textSecondary }}>{t("username")}</label>
+              <input value={acctUsername} onChange={e => setAcctUsername(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl border text-sm" style={{ borderColor: POS.border }}
+                placeholder={t("username")} />
+            </div>
+            <div>
+              <label className="text-xs font-bold mb-1 block" style={{ color: POS.textSecondary }}>{t("newPassword")}</label>
+              <input type="password" value={acctPassword} onChange={e => setAcctPassword(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl border text-sm" style={{ borderColor: POS.border }}
+                placeholder={t("leaveBlankToKeep")} />
+            </div>
+          </div>
+          <div className="flex gap-3 mt-5">
+            <button onClick={() => setShowAccountSettings(false)} className="flex-1 py-3 rounded-xl border font-bold"
+              style={{ borderColor: POS.border, color: POS.textSecondary }}>{t("cancel")}</button>
+            <button onClick={handleSaveAccount} disabled={acctSaving || (!acctUsername && !acctPassword)}
+              className="flex-1 py-3 rounded-xl text-white font-bold disabled:opacity-50"
+              style={{ background: POS.primary }}>{acctSaving ? t("loading") : t("save")}</button>
+          </div>
+        </Dialog.Panel>
+      </Dialog>
 
       {/* Create School Modal */}
       {showCreate && (

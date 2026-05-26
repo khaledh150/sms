@@ -100,7 +100,7 @@ export default function RenewCoursePage() {
               {remaining <= 0 ? `หมดชั่วโมงแล้ว / Hours used up` : `เหลือ ${remaining} ชม. / ${remaining} hrs left`}
             </span>
           </div>
-          <p className="text-xs text-gray-400 mt-2">{data.usedHours} / {data.purchasedHours} ชม. ใช้แล้ว</p>
+          <p className="text-xs text-gray-400 mt-2">{data.usedHours} / {data.purchasedHours} ชม. / hrs</p>
         </div>
 
         {/* Step: Packages */}

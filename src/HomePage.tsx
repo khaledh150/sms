@@ -262,7 +262,7 @@ export default function HomePage() {
                         <span className="font-bold text-xs" style={{ color: POS.danger }}>{s.course_name}</span>
                       </div>
                       <span className="text-xs font-bouncy px-2 py-1 bg-white rounded-lg shadow-sm" style={{ color: POS.danger }}>
-                        {s.hours_used}/{s.purchased_hours} hrs
+                        {s.hours_used}/{s.purchased_hours} {t("hrs")}
                       </span>
                     </motion.div>
                   ))}

@@ -16,6 +16,7 @@ import { useNavigate } from "react-router-dom";
 
 import type { SchoolHealth } from "./types";
 import { timeAgo as sharedTimeAgo } from "../../utils/time";
+import ConfirmDialog from "../../components/ConfirmDialog";
 
 interface Props {
   school: SchoolHealth;
@@ -262,6 +263,7 @@ export default function SchoolDetailModal({ school, onClose, onStatusChange }: P
   const [newMemberPassword, setNewMemberPassword] = useState("");
   const [newMemberRole, setNewMemberRole] = useState<"admin" | "staff">("staff");
   const [addingMember, setAddingMember] = useState(false);
+  const [removeStaffId, setRemoveStaffId] = useState<string | null>(null);
 
   async function handleAddMember(e: React.FormEvent) {
     e.preventDefault();
@@ -276,14 +278,14 @@ export default function SchoolDetailModal({ school, onClose, onStatusChange }: P
         p_password: newMemberPassword,
         p_full_name: newMemberName.trim() || "",
         p_role: newMemberRole,
+        p_school_id: school.school_id,
       });
       if (rpcErr) { toast(rpcErr.message, "error"); return; }
 
-      // Update the profile to point to the correct school
+      // Update username on the profile
       const { data: newProfiles } = await supabase.from("profiles").select("id").eq("email", email).limit(1);
       if (newProfiles && newProfiles[0]) {
         const { error: profileErr } = await supabase.from("profiles").update({
-          school_id: school.school_id,
           username,
         }).eq("id", newProfiles[0].id);
         if (profileErr) { toast(profileErr.message, "error"); return; }
@@ -585,7 +587,7 @@ export default function SchoolDetailModal({ school, onClose, onStatusChange }: P
                       <PencilIcon className="w-3.5 h-3.5" style={{ color: POS.primary }} />
                     </button>
                     {!isOwner(s.id) && (
-                      <button onClick={() => { if (confirm(t("confirmRemoveStaff"))) removeStaffMutation.mutate(s.id); }}
+                      <button onClick={() => setRemoveStaffId(s.id)}
                         className="p-1.5 rounded-lg hover:bg-red-50">
                         <TrashIcon className="w-3.5 h-3.5" style={{ color: POS.danger }} />
                       </button>
@@ -707,6 +709,17 @@ export default function SchoolDetailModal({ school, onClose, onStatusChange }: P
           </div>
         )}
       </motion.div>
+      <ConfirmDialog
+        open={!!removeStaffId}
+        onClose={() => setRemoveStaffId(null)}
+        onConfirm={() => {
+          if (removeStaffId) removeStaffMutation.mutate(removeStaffId);
+          setRemoveStaffId(null);
+        }}
+        message={t("confirmRemoveStaff")}
+        confirmLabel={t("remove")}
+        variant="danger"
+      />
     </div>
   );
 }

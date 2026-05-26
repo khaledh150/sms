@@ -1,7 +1,7 @@
 import { useMemo, useState, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
-import { PlusIcon, MagnifyingGlassIcon } from "@heroicons/react/24/solid";
+import { MagnifyingGlassIcon } from "@heroicons/react/24/solid";
 import { ArrowUpTrayIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import { Dialog } from "@headlessui/react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -108,7 +108,7 @@ export default function StudentsPage() {
   }
 
   function downloadTemplate() {
-    const csv = "nick_name,first_name,last_name,parent_phone,parent_line_id\nPloy,Somchai,Jaidee,0812345678,@somchai";
+    const csv = "nick_name,first_name,last_name,parent_phone,parent_line_id\nBeam,Somchai,Jaidee,0812345678,@somchai";
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -134,23 +134,14 @@ export default function StudentsPage() {
             whileTap={{ scale: 0.95 }}
             onClick={() => setImportOpen(true)}
             aria-label={t("importCSV")}
-            className="flex items-center gap-1 px-2 py-1.5 rounded-lg font-bold text-xs"
+            className="flex items-center gap-1 px-2 py-1 rounded-lg font-bold text-[11px]"
             style={{
               background: POS.bgSurface,
               color: POS.textMuted,
               border: `1px solid ${POS.border}`,
             }}
           >
-            <ArrowUpTrayIcon className="w-4 h-4" /> {t("importCSV")}
-          </motion.button>
-          <motion.button
-            whileTap={{ scale: 0.95 }}
-            onClick={() => navigate("/admissions")}
-            aria-label={t("addStudent")}
-            className="flex items-center gap-1 px-3 py-2 rounded-xl text-white font-bold text-sm"
-            style={{ background: POS.primary }}
-          >
-            <PlusIcon className="w-4 h-4" /> {t("addStudent")}
+            <ArrowUpTrayIcon className="w-3.5 h-3.5" /> {t("importCSV")}
           </motion.button>
         </div>
       </div>

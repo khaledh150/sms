@@ -87,7 +87,7 @@ export default memo(function StudentGrid({ students, courseId, isHere, todayUsed
                   background: isOverlimit ? "rgba(248, 113, 113, 0.15)" : isLow ? "rgba(251, 191, 36, 0.2)" : "rgba(0,0,0,0.04)",
                   color: isOverlimit ? "#EF4444" : isLow ? "#D97706" : POS.textSecondary
                 }}>
-                {totalUsed} / {purchased || "∞"} hrs
+                {totalUsed} / {purchased || "∞"} {t("hrs")}
               </div>
 
               {isOverlimit && (

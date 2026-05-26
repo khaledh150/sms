@@ -10,6 +10,7 @@ import { useAuth } from "../../AuthContext";
 import { useToast } from "../../hooks/useToast";
 import { POS } from "../../theme";
 import type { EnrollmentData, CourseData, AttendanceRecord, PendingChange } from "./types";
+import ConfirmDialog from "../../components/ConfirmDialog";
 
 interface Props {
   enrollment: EnrollmentData;
@@ -33,6 +34,7 @@ export default memo(function CourseEnrollmentCard({
   const { user } = useAuth();
   const { toast } = useToast();
   const [expanded, setExpanded] = useState(false);
+  const [cancelAttendanceId, setCancelAttendanceId] = useState<string | null>(null);
   const isOwner = userRole === "owner" || userRole === "superadmin";
   const displayRecords = allAttendanceRecords || attendanceRecords;
 
@@ -81,9 +83,9 @@ export default memo(function CourseEnrollmentCard({
         </div>
         <div className="text-right mr-2">
           <div className="text-lg font-bold" style={{ color: isOverlimit ? POS.danger : POS.textPrimary }}>
-            {remaining}/{purchased}
+            {used}/{purchased}
           </div>
-          <div className="text-xs" style={{ color: POS.textMuted }}>{t("hrsLeft")}</div>
+          <div className="text-xs" style={{ color: POS.textMuted }}>{t("hrs")}</div>
         </div>
         {isOverlimit ? (
           <span className="flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold"
@@ -157,15 +159,9 @@ export default memo(function CourseEnrollmentCard({
                       </span>
                       {!isCancelled && isOwner && (
                         <button
-                          onClick={async (e) => {
+                          onClick={(e) => {
                             e.stopPropagation();
-                            if (!confirm(t("confirmCancelAttendance"))) return;
-                            const { error } = await supabase.from("attendance").update({
-                              cancelled_by: user!.id, cancelled_at: new Date().toISOString(),
-                            }).eq("id", a.id);
-                            if (error) { toast(error.message, "error"); return; }
-                            toast(t("attendanceCancelled"), "success");
-                            queryClient.invalidateQueries({ queryKey: ["studentAttendance", studentId] });
+                            setCancelAttendanceId(a.id);
                           }}
                           className="p-0.5 rounded hover:bg-red-50"
                           title={t("cancelAttendance")}
@@ -181,6 +177,23 @@ export default memo(function CourseEnrollmentCard({
           </div>
         </div>
       )}
+      <ConfirmDialog
+        open={!!cancelAttendanceId}
+        onClose={() => setCancelAttendanceId(null)}
+        onConfirm={async () => {
+          if (!cancelAttendanceId) return;
+          const { error } = await supabase.from("attendance").update({
+            cancelled_by: user!.id, cancelled_at: new Date().toISOString(),
+          }).eq("id", cancelAttendanceId);
+          setCancelAttendanceId(null);
+          if (error) { toast(error.message, "error"); return; }
+          toast(t("attendanceCancelled"), "success");
+          queryClient.invalidateQueries({ queryKey: ["studentAttendance", studentId] });
+        }}
+        message={t("confirmCancelAttendance")}
+        confirmLabel={t("cancelAttendance")}
+        variant="danger"
+      />
     </div>
   );
 });
