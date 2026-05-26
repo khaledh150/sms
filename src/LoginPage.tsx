@@ -56,46 +56,46 @@ export default function LoginPage() {
       </div>
 
       {/* Right Side - Form */}
-      <div className="flex-1 flex flex-col justify-start lg:justify-center items-center relative z-10 glass overflow-y-auto pt-8 lg:pt-0">
-        <div className="absolute top-6 right-6 z-10"><LanguageSwitcher /></div>
+      <div className="flex-1 flex flex-col justify-start lg:justify-center items-center relative z-10 glass overflow-y-auto pt-4 sm:pt-8 lg:pt-0">
+        <div className="absolute top-4 right-4 sm:top-6 sm:right-6 z-10"><LanguageSwitcher /></div>
 
         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.4 }}
-          className="w-full max-w-sm px-6">
-          <div className="text-center mb-6 lg:hidden">
-            <img src="/logo.webp" alt="Wonder Kids" className="w-28 h-28 mx-auto mb-2 drop-shadow-xl object-contain" />
-            <h1 className="text-4xl font-bouncy" style={{ color: POS.primary }}>Wonder Kids</h1>
-            <p className="text-sm font-bold mt-1" style={{ color: POS.textMuted }}>{t("schoolTagline")}</p>
+          className="w-full max-w-sm px-4 sm:px-6">
+          <div className="text-center mb-4 sm:mb-6 lg:hidden">
+            <img src="/logo.webp" alt="Wonder Kids" className="w-20 h-20 sm:w-28 sm:h-28 mx-auto mb-1 sm:mb-2 drop-shadow-xl object-contain" />
+            <h1 className="text-3xl sm:text-4xl font-bouncy" style={{ color: POS.primary }}>Wonder Kids</h1>
+            <p className="text-xs sm:text-sm font-bold mt-1" style={{ color: POS.textMuted }}>{t("schoolTagline")}</p>
           </div>
 
-          <div className="bg-white/90 p-10 backdrop-blur-xl border border-white shadow-2xl" style={{ borderRadius: "2.5rem" }}>
-            <h2 className="text-3xl font-bouncy text-center mb-8" style={{ color: POS.textPrimary }}>{t("signIn")}</h2>
+          <div className="bg-white/90 p-6 sm:p-10 backdrop-blur-xl border border-white shadow-2xl" style={{ borderRadius: "2rem" }}>
+            <h2 className="text-2xl sm:text-3xl font-bouncy text-center mb-5 sm:mb-8" style={{ color: POS.textPrimary }}>{t("signIn")}</h2>
 
-            <form onSubmit={handleLogin} className="space-y-6">
+            <form onSubmit={handleLogin} className="space-y-4 sm:space-y-6">
               <div>
-                <label className="block text-sm font-bold mb-2 ml-3" style={{ color: POS.textSecondary }}>{t("username")}</label>
-                <input type="text" className="w-full bg-[#f8f9fc] border-[3px] border-transparent px-6 py-4 font-bold text-lg focus:outline-none transition-all shadow-inner"
-                  style={{ borderRadius: "1.5rem" }}
+                <label className="block text-sm font-bold mb-1.5 sm:mb-2 ml-3" style={{ color: POS.textSecondary }}>{t("username")}</label>
+                <input type="text" className="w-full bg-[#f8f9fc] border-[3px] border-transparent px-5 py-3 sm:px-6 sm:py-4 font-bold text-base sm:text-lg focus:outline-none transition-all shadow-inner"
+                  style={{ borderRadius: "1.25rem" }}
                   onFocus={e => { e.target.style.borderColor = POS.primaryLight; e.target.style.background = "#fff"; }}
                   onBlur={e => { e.target.style.borderColor = "transparent"; e.target.style.background = "#f8f9fc"; }}
                   placeholder={t("usernamePlaceholder")} value={email} onChange={e => setEmail(e.target.value)} required autoFocus />
               </div>
               <div>
-                <label className="block text-sm font-bold mb-2 ml-3" style={{ color: POS.textSecondary }}>{t("password")}</label>
-                <input type="password" className="w-full bg-[#f8f9fc] border-[3px] border-transparent px-6 py-4 font-bold text-lg focus:outline-none transition-all shadow-inner"
-                  style={{ borderRadius: "1.5rem" }}
+                <label className="block text-sm font-bold mb-1.5 sm:mb-2 ml-3" style={{ color: POS.textSecondary }}>{t("password")}</label>
+                <input type="password" className="w-full bg-[#f8f9fc] border-[3px] border-transparent px-5 py-3 sm:px-6 sm:py-4 font-bold text-base sm:text-lg focus:outline-none transition-all shadow-inner"
+                  style={{ borderRadius: "1.25rem" }}
                   onFocus={e => { e.target.style.borderColor = POS.primaryLight; e.target.style.background = "#fff"; }}
                   onBlur={e => { e.target.style.borderColor = "transparent"; e.target.style.background = "#f8f9fc"; }}
                   placeholder="••••••••" value={pw} onChange={e => setPw(e.target.value)} required />
               </div>
 
               <button type="submit" disabled={loading}
-                className="btn-gummy w-full text-white py-5 mt-6 font-bouncy text-2xl disabled:opacity-50 tracking-wide"
-                style={{ background: POS.primaryGradient, borderRadius: "1.5rem" }}>
+                className="btn-gummy w-full text-white py-4 sm:py-5 mt-4 sm:mt-6 font-bouncy text-xl sm:text-2xl disabled:opacity-50 tracking-wide"
+                style={{ background: POS.primaryGradient, borderRadius: "1.25rem" }}>
                 {loading ? t("signingIn") : t("signInBtn")}
               </button>
 
               {err && (
-                <motion.p initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mt-4 text-center text-sm font-bold p-3" style={{ color: POS.danger, background: POS.dangerLight, borderRadius: POS.radiusSm }}>
+                <motion.p initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mt-3 text-center text-sm font-bold p-3" style={{ color: POS.danger, background: POS.dangerLight, borderRadius: POS.radiusSm }}>
                   {err}
                 </motion.p>
               )}

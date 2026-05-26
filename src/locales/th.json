@@ -577,6 +577,10 @@
   "uploadQrCode": "อัพโหลด QR Code",
   "replaceQrCode": "เปลี่ยน QR Code",
   "uploading": "กำลังอัพโหลด...",
+  "replace": "เปลี่ยน",
+  "qrUploaded": "อัพโหลด QR code สำเร็จ!",
+  "qrRemoved": "ลบ QR code แล้ว",
+  "paymentQrHint": "อัพโหลดรูป QR code ชำระเงิน จะถูกส่งพร้อมข้อความต่ออายุเพื่อให้ผู้ปกครองชำระเงินได้เลย",
   "close": "ปิด",
   "syncFollowersError403": "หากต้องการซิงค์ผู้ติดตามทั้งหมด LINE OA ของคุณต้องได้รับการยืนยัน ไปที่ LINE Official Account Manager → ตั้งค่า → ยืนยันบัญชี ในระหว่างนี้ขอให้ผู้ปกครองส่งข้อความใดก็ได้ไปยัง LINE OA ของคุณ",
 

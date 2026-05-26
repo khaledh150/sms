@@ -81,7 +81,9 @@
       "PowerShell(New-Item -ItemType Directory -Force \"c:\\\\Apps and Games Dev\\\\sme\\\\src\\\\utils\")",
       "Bash(Get-ChildItem -Path \"c:\\\\Apps and Games Dev\\\\sme\\\\src\" -Recurse -Filter \"*.tsx\")",
       "Bash(Select-Object -ExpandProperty FullName)",
-      "Bash(Get-ChildItem -Recurse -Filter \"*.tsx\")"
+      "Bash(Get-ChildItem -Recurse -Filter \"*.tsx\")",
+      "Bash(Get-ChildItem -Path \"c:\\\\Apps and Games Dev\\\\sme\" -Recurse -Directory)",
+      "Bash(git log *)"
     ],
     "additionalDirectories": [
       "c:\\Apps and Games Dev\\sme\\src"

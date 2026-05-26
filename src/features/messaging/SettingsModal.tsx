@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Dialog, Disclosure } from "@headlessui/react";
 import {
   ChatBubbleLeftRightIcon,
@@ -9,6 +9,9 @@ import {
   LinkIcon,
   BellAlertIcon,
   DocumentTextIcon,
+  QrCodeIcon,
+  PhotoIcon,
+  TrashIcon,
 } from "@heroicons/react/24/solid";
 import { ClipboardDocumentIcon } from "@heroicons/react/24/outline";
 import { useQueryClient } from "@tanstack/react-query";
@@ -16,6 +19,7 @@ import { supabase, SUPABASE_FUNCTIONS_URL } from "../../supabaseClient";
 import { useToast } from "../../hooks/useToast";
 import { useTranslation } from "react-i18next";
 import { POS } from "../../theme";
+import { useAuth } from "../../AuthContext";
 import type { LineConfig } from "./types";
 import { LINE_GREEN } from "./types";
 
@@ -30,11 +34,15 @@ interface Props {
 export default function SettingsModal({ open, onClose, config, schoolId, onOpenTemplates }: Props) {
   const { t } = useTranslation();
   const { toast } = useToast();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
+  const isOwner = user?.role === "owner";
 
   const isConfigured = config?.secrets_configured ?? false;
   const [configForm, setConfigForm] = useState({ channel_id: config?.channel_id || "", channel_secret: "", channel_token: "" });
   const [saving, setSaving] = useState(false);
+  const [uploadingQr, setUploadingQr] = useState(false);
+  const qrInputRef = useRef<HTMLInputElement>(null);
 
   function handleOpen() {
     setConfigForm({ channel_id: config?.channel_id || "", channel_secret: "", channel_token: "" });
@@ -69,6 +77,31 @@ export default function SettingsModal({ open, onClose, config, schoolId, onOpenT
     if (!config) return;
     await supabase.from("line_config").update({ [key]: val }).eq("id", config.id);
     queryClient.invalidateQueries({ queryKey: ["line_config"] });
+  }
+
+  async function handleQrUpload(file: File) {
+    if (!config) return;
+    setUploadingQr(true);
+    try {
+      const ext = file.name.split(".").pop() || "png";
+      const path = `payment-qr/${config.id}.${ext}`;
+      const { error: upErr } = await supabase.storage.from("receipts").upload(path, file, { upsert: true });
+      if (upErr) { toast(upErr.message, "error"); return; }
+      const { data: urlData } = supabase.storage.from("receipts").getPublicUrl(path);
+      const publicUrl = urlData.publicUrl + "?t=" + Date.now();
+      await supabase.from("line_config").update({ payment_qr_url: publicUrl }).eq("id", config.id);
+      queryClient.invalidateQueries({ queryKey: ["line_config"] });
+      toast(t("qrUploaded"), "success");
+    } finally {
+      setUploadingQr(false);
+    }
+  }
+
+  async function handleQrRemove() {
+    if (!config) return;
+    await supabase.from("line_config").update({ payment_qr_url: null }).eq("id", config.id);
+    queryClient.invalidateQueries({ queryKey: ["line_config"] });
+    toast(t("qrRemoved"), "success");
   }
 
   const autoToggles = [
@@ -197,7 +230,53 @@ export default function SettingsModal({ open, onClose, config, schoolId, onOpenT
               </div>
             )}
 
-            {/* Section 4: Message Templates button */}
+            {/* Section 4: Payment QR Code — owner only */}
+            {config && isOwner && (
+              <Disclosure>
+                {({ open: isOpen }) => (
+                  <div className="rounded-2xl border overflow-hidden" style={{ borderColor: POS.borderLight }}>
+                    <Disclosure.Button className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors">
+                      <div className="flex items-center gap-2.5">
+                        <QrCodeIcon className="w-4 h-4" style={{ color: "#8B5CF6" }} />
+                        <span className="text-sm font-bold" style={{ color: POS.textPrimary }}>{t("paymentQrCode")}</span>
+                      </div>
+                      <ChevronDownIcon className={`w-4 h-4 transition-transform ${isOpen ? "rotate-180" : ""}`} style={{ color: POS.textMuted }} />
+                    </Disclosure.Button>
+                    <Disclosure.Panel className="px-4 pb-4 border-t" style={{ borderColor: POS.borderLight }}>
+                      <p className="text-[10px] mt-3 mb-3" style={{ color: POS.textMuted }}>{t("paymentQrHint")}</p>
+                      {config.payment_qr_url ? (
+                        <div className="flex flex-col items-center gap-2">
+                          <img src={config.payment_qr_url} alt="Payment QR" className="w-40 h-40 object-contain rounded-xl border" style={{ borderColor: POS.borderLight }} />
+                          <div className="flex gap-2">
+                            <button onClick={() => qrInputRef.current?.click()}
+                              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold border hover:bg-gray-50"
+                              style={{ borderColor: POS.borderLight, color: POS.textSecondary }}>
+                              <PhotoIcon className="w-3.5 h-3.5" /> {t("replace")}
+                            </button>
+                            <button onClick={handleQrRemove}
+                              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold border hover:bg-red-50"
+                              style={{ borderColor: POS.borderLight, color: POS.danger }}>
+                              <TrashIcon className="w-3.5 h-3.5" /> {t("remove")}
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button onClick={() => qrInputRef.current?.click()} disabled={uploadingQr}
+                          className="w-full py-6 rounded-xl border-2 border-dashed flex flex-col items-center gap-1.5 hover:bg-purple-50/50 transition-colors disabled:opacity-50"
+                          style={{ borderColor: "#8B5CF680", color: "#8B5CF6" }}>
+                          <PhotoIcon className="w-6 h-6" />
+                          <span className="text-xs font-bold">{uploadingQr ? t("uploading") : t("uploadQrCode")}</span>
+                        </button>
+                      )}
+                      <input ref={qrInputRef} type="file" accept="image/*" className="hidden"
+                        onChange={e => { const f = e.target.files?.[0]; if (f) handleQrUpload(f); e.target.value = ""; }} />
+                    </Disclosure.Panel>
+                  </div>
+                )}
+              </Disclosure>
+            )}
+
+            {/* Section 5: Message Templates button */}
             {config && (
               <button onClick={() => { onOpenTemplates(); onClose(); }}
                 className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-bold border-2 border-dashed hover:bg-green-50 transition-colors"

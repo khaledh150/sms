@@ -578,6 +578,10 @@
   "uploadQrCode": "Upload QR Code",
   "replaceQrCode": "Replace QR Code",
   "uploading": "Uploading...",
+  "replace": "Replace",
+  "qrUploaded": "QR code uploaded!",
+  "qrRemoved": "QR code removed",
+  "paymentQrHint": "Upload a payment QR code image. It will be sent with renewal messages so parents can pay directly.",
   "close": "Close",
   "syncFollowersError403": "To sync all followers, your LINE OA needs to be verified. Go to LINE Official Account Manager → Settings → Account verification. Meanwhile, ask parents to send any message to your LINE OA to appear here.",
 
