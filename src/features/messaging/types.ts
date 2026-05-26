@@ -28,6 +28,10 @@ export interface LineMessage {
   recipient_student_ids: string[] | null;
   status: string;
   created_at: string;
+  direction: "incoming" | "outgoing";
+  student_id: string | null;
+  media_url: string | null;
+  media_type: string | null;
 }
 
 export interface LineConnection {

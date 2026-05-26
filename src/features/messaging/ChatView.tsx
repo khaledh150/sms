@@ -35,18 +35,30 @@ export default function ChatView({ studentId, student, messages, connections, is
   const [sending, setSending] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [editNameValue, setEditNameValue] = useState("");
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   const displayName = student.nick_name ? `${student.nick_name} (${student.first_name})` : `${student.first_name} ${student.last_name}`;
 
-  const chatMessages = useMemo(() =>
-    messages
-      .filter(m => m.recipient_student_ids?.includes(studentId))
-      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()),
-  [messages, studentId]);
+  const chatMessages = useMemo(() => {
+    const outgoing = messages.filter(m => m.direction !== "incoming" && m.recipient_student_ids?.includes(studentId));
+    const incoming = messages.filter(m => m.direction === "incoming" && m.student_id === studentId);
+    return [...outgoing, ...incoming].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+  }, [messages, studentId]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages.length]);
+
+  // Realtime subscription for live updates
+  useEffect(() => {
+    const channel = supabase
+      .channel(`chat_${studentId}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "line_messages" }, () => {
+        queryClient.invalidateQueries({ queryKey: ["line_messages"] });
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [studentId, queryClient]);
 
   const grouped: { date: string; msgs: LineMessage[] }[] = [];
   chatMessages.forEach(msg => {
@@ -139,26 +151,52 @@ export default function ChatView({ studentId, student, messages, connections, is
                   {formatChatDate(group.msgs[0].created_at)}
                 </span>
               </div>
-              {group.msgs.map(msg => (
-                <div key={msg.id} className="flex justify-end mb-2">
-                  <div className="max-w-[75%] flex items-end gap-1">
-                    <div className="flex flex-col items-end gap-0.5">
-                      <span className="text-[9px] text-white/50">
-                        {msg.status === "sent" ? "Read" : msg.status === "queued" ? "Sent" : msg.status}
-                      </span>
-                      <span className="text-[10px] text-white/50">{formatChatTime(msg.created_at)}</span>
-                    </div>
-                    <div className="px-3 py-2 rounded-xl rounded-br-sm text-sm text-white shadow-sm" style={{ background: LINE_GREEN }}>
-                      {msg.content}
+              {group.msgs.map(msg => {
+                const isIncoming = msg.direction === "incoming";
+                return (
+                  <div key={msg.id} className={`flex ${isIncoming ? "justify-start" : "justify-end"} mb-2`}>
+                    <div className={`max-w-[75%] flex items-end gap-1 ${isIncoming ? "flex-row" : "flex-row-reverse"}`}>
+                      {/* Bubble */}
+                      <div className={`rounded-xl shadow-sm overflow-hidden ${isIncoming ? "rounded-bl-sm" : "rounded-br-sm"}`}
+                        style={{ background: isIncoming ? "#fff" : LINE_GREEN }}>
+                        {msg.media_type === "image" && msg.media_url ? (
+                          <img src={msg.media_url} alt="" className="max-w-full rounded-lg cursor-pointer"
+                            style={{ maxHeight: 200 }}
+                            onClick={() => setPreviewImage(msg.media_url)} />
+                        ) : null}
+                        {msg.content && (
+                          <div className={`px-3 py-2 text-sm ${isIncoming ? "" : "text-white"}`}
+                            style={{ color: isIncoming ? "#333" : undefined }}>
+                            {msg.content}
+                          </div>
+                        )}
+                      </div>
+                      {/* Time + status */}
+                      <div className={`flex flex-col ${isIncoming ? "items-start" : "items-end"} gap-0.5`}>
+                        {!isIncoming && (
+                          <span className="text-[9px] text-white/50">
+                            {msg.status === "sent" ? "Sent" : msg.status === "queued" ? "Queued" : msg.status}
+                          </span>
+                        )}
+                        <span className="text-[10px] text-white/50">{formatChatTime(msg.created_at)}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ))
         )}
         <div ref={chatEndRef} />
       </div>
+
+      {/* Image preview overlay */}
+      {previewImage && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+          onClick={() => setPreviewImage(null)}>
+          <img src={previewImage} alt="" className="max-w-[90vw] max-h-[85vh] rounded-2xl shadow-2xl object-contain" />
+        </div>
+      )}
 
       {/* Chat input bar */}
       <div className="flex items-end gap-2 px-3 py-2 flex-shrink-0" style={{ background: "#f0f0f0", borderTop: "1px solid #ddd" }}>

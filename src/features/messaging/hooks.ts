@@ -17,7 +17,7 @@ export function useLineMessages() {
   return useQuery({
     queryKey: ["line_messages"],
     queryFn: async () => {
-      const { data } = await supabase.from("line_messages").select("*").order("created_at", { ascending: false }).limit(50);
+      const { data } = await supabase.from("line_messages").select("*").order("created_at", { ascending: false }).limit(200);
       return (data ?? []) as LineMessage[];
     },
     staleTime: 30_000,
