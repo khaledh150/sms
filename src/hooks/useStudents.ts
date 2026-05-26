@@ -11,6 +11,8 @@ import {
   fetchExpectedToday,
   fetchAllEnrolledStudents,
   fetchRenewalStudents,
+  fetchStudentsWithStatus,
+  fetchEnrollmentHistory,
 } from "../services/students";
 
 export function useStudents(activeOnly = true) {
@@ -81,10 +83,27 @@ export function useAllEnrolledStudents() {
   });
 }
 
+export function useStudentsWithStatus() {
+  return useQuery({
+    queryKey: ["students_with_status"],
+    queryFn: fetchStudentsWithStatus,
+    staleTime: STALE.NORMAL,
+  });
+}
+
 export function useRenewalStudents() {
   return useQuery({
     queryKey: ["renewal_students"],
     queryFn: fetchRenewalStudents,
+    staleTime: STALE.NORMAL,
+  });
+}
+
+export function useEnrollmentHistory(studentId: string | undefined) {
+  return useQuery({
+    queryKey: ["enrollment_history", studentId],
+    queryFn: () => fetchEnrollmentHistory(studentId!),
+    enabled: !!studentId,
     staleTime: STALE.NORMAL,
   });
 }

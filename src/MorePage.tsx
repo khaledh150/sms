@@ -9,6 +9,7 @@ import {
   GlobeAltIcon,
   ChatBubbleLeftRightIcon,
   ShieldCheckIcon,
+  UsersIcon,
 } from "@heroicons/react/24/solid";
 import { supabase } from "./supabaseClient";
 import { useAuth } from "./AuthContext";
@@ -25,6 +26,7 @@ export default function MorePage() {
   const isSuperAdmin = user?.role === "superadmin";
 
   const items = [
+    { label: t("addExistingStudent"), icon: <UsersIcon className="w-6 h-6" />, path: "/admissions?mode=existing", color: POS.info },
     { label: t("courses"), icon: <BookOpenIcon className="w-6 h-6" />, path: "/courses", color: POS.primary },
     ...(isAdmin ? [
       { label: t("reports"), icon: <ChartBarIcon className="w-6 h-6" />, path: "/reports", color: POS.info },

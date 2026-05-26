@@ -21,6 +21,7 @@ function LegacyStudentRedirect() {
 /* ---------- CORE POS SCREENS (eagerly loaded) ---------- */
 import HomePage from "./HomePage";
 import AttendancePage from "./features/attendance";
+import CourseAttendanceView from "./features/attendance/CourseAttendanceView";
 import StudentsPage from "./StudentsPage";
 import StudentProfilePage from "./features/student-profile";
 import MorePage from "./MorePage";
@@ -68,6 +69,7 @@ export default function App() {
             {/* Core POS screens */}
             <Route path="/dashboard" element={<HomePage />} />
             <Route path="/attendance" element={<AttendancePage />} />
+            <Route path="/attendance/:courseId" element={<CourseAttendanceView />} />
             <Route path="/students" element={<StudentsPage />} />
             <Route path="/students/:id" element={<StudentProfilePage />} />
             <Route path="/inbox" element={<AdminRoute><InboxPage /></AdminRoute>} />

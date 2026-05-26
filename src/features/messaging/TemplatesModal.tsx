@@ -42,7 +42,9 @@ export default function TemplatesModal({ open, onClose, config }: Props) {
     { key: "renewal_approaching" as const, label: t("autoLimitNotify"), vars: "{{name}}, {{course}}, {{used}}, {{purchased}}, {{remaining}}" },
     { key: "overlimit" as const, label: t("autoRenewalReminder"), vars: "{{name}}, {{course}}, {{used}}, {{purchased}}" },
     { key: "enrollment" as const, label: t("enrollmentNotify"), vars: "{{name}}, {{course}}, {{purchased}}, {{school}}" },
+    { key: "new_course" as const, label: t("newCourseNotify"), vars: "{{name}}, {{course}}, {{purchased}}, {{school}}" },
     { key: "approval" as const, label: t("approvalNotify"), vars: "{{name}}, {{course}}, {{added}}" },
+    { key: "renewal_payment" as const, label: t("renewalPaymentNotify"), vars: "{{name}}, {{course}}, {{remaining}}" },
     { key: "link_welcome" as const, label: t("autoLinkNotify"), vars: "{{name}}" },
   ];
 

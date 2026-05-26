@@ -14,10 +14,12 @@ export default function AttendanceQRBox({ onScan, onClose }: Props) {
   const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
   const scannerRef = useRef<Html5Qrcode | null>(null);
+  const closingRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!containerRef.current) return;
+    closingRef.current = false;
     const scannerId = "qr-reader-" + Date.now();
     containerRef.current.id = scannerId;
 
@@ -28,26 +30,40 @@ export default function AttendanceQRBox({ onScan, onClose }: Props) {
       { facingMode: "environment" },
       { fps: 10, qrbox: { width: 220, height: 220 }, aspectRatio: 1.0 },
       (decodedText) => {
+        if (closingRef.current) return;
+        closingRef.current = true;
         html5Qr.stop().catch(() => {});
         scannerRef.current = null;
         onScan(decodedText);
       },
       () => {}
     ).catch((err: any) => {
-      setError(err?.message || err?.toString() || "Camera access denied");
+      if (closingRef.current) return;
+      const msg = err?.message || err?.toString() || "";
+      if (msg.includes("NotAllowedError") || msg.includes("Permission denied")) {
+        setError(t("cameraPermissionDenied"));
+      } else if (msg.includes("NotFoundError") || msg.includes("Requested device not found")) {
+        setError(t("cameraNotFound"));
+      } else if (msg.includes("NotReadableError")) {
+        setError(t("cameraInUse"));
+      } else {
+        setError(msg || "Camera error");
+      }
     });
 
     return () => {
+      closingRef.current = true;
       if (scannerRef.current) {
         scannerRef.current.stop().catch(() => {});
         scannerRef.current = null;
       }
     };
-  }, [onScan]);
+  }, [onScan, t]);
 
-  function handleClose() {
+  async function handleClose() {
+    closingRef.current = true;
     if (scannerRef.current) {
-      scannerRef.current.stop().catch(() => {});
+      try { await scannerRef.current.stop(); } catch {}
       scannerRef.current = null;
     }
     onClose();
@@ -78,8 +94,13 @@ export default function AttendanceQRBox({ onScan, onClose }: Props) {
 
         <div className="relative bg-black" style={{ aspectRatio: "1/1" }}>
           {error ? (
-            <div className="absolute inset-0 flex items-center justify-center p-6 text-center">
+            <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center gap-4">
               <p className="text-white text-sm">{error}</p>
+              <button onClick={handleClose}
+                className="px-4 py-2 rounded-xl text-sm font-bold"
+                style={{ background: POS.primary, color: "#fff", minHeight: "auto" }}>
+                {t("close")}
+              </button>
             </div>
           ) : (
             <div ref={containerRef} className="w-full h-full" />

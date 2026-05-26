@@ -1,14 +1,18 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { Dialog } from "@headlessui/react";
-import { supabase } from "./supabaseClient";
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import { Dialog, Disclosure } from "@headlessui/react";
+import { supabase, SUPABASE_FUNCTIONS_URL } from "./supabaseClient";
 import { useAuth } from "./AuthContext";
-import { PlusCircleIcon, XMarkIcon, PencilIcon, TrashIcon, ClipboardDocumentListIcon, UsersIcon, ChevronDownIcon } from "@heroicons/react/24/solid";
+import { PlusCircleIcon, XMarkIcon, PencilIcon, TrashIcon, ClipboardDocumentListIcon, UsersIcon, ChevronDownIcon, ChatBubbleLeftRightIcon, KeyIcon, LinkIcon, BellAlertIcon, QrCodeIcon, CheckCircleIcon } from "@heroicons/react/24/solid";
+import { ClipboardDocumentIcon, PhotoIcon } from "@heroicons/react/24/outline";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useToast } from "./hooks/useToast";
 import { POS } from "./theme";
 
 import type { Profile, AuditEntry } from "./types";
 import { timeAgo } from "./utils/time";
+
+const LINE_GREEN = "#06C755";
 
 export default function SettingsPage() {
   const { t } = useTranslation();
@@ -32,7 +36,8 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Profile | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const [activeTab, setActiveTab] = useState<"team" | "log">("team");
+  const [activeTab, setActiveTab] = useState<"team" | "log" | "line">("team");
+  const queryClient = useQueryClient();
 
   const [logEntries, setLogEntries] = useState<AuditEntry[]>([]);
   const [logLoading, setLogLoading] = useState(false);
@@ -41,6 +46,22 @@ export default function SettingsPage() {
   const [logFilter, setLogFilter] = useState("");
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
   const LOG_PAGE = 50;
+
+  const [nameCache, setNameCache] = useState<{ students: Map<string, string>; courses: Map<string, string> }>({ students: new Map(), courses: new Map() });
+
+  // LINE Config state
+  const { data: lineConfig, refetch: refetchLineConfig } = useQuery({
+    queryKey: ["line_config_settings"],
+    queryFn: async () => {
+      const { data } = await supabase.from("line_config").select("*").limit(1).maybeSingle();
+      return data as { id: string; channel_id: string; secrets_configured: boolean; auto_checkin_notify: boolean; auto_limit_notify: boolean; auto_renewal_reminder: boolean; auto_link_notify: boolean; payment_qr_url: string | null } | null;
+    },
+    staleTime: 60_000,
+  });
+  const [lineForm, setLineForm] = useState({ channel_id: "", channel_secret: "", channel_token: "" });
+  const [savingLine, setSavingLine] = useState(false);
+  const [uploadingQr, setUploadingQr] = useState(false);
+  const qrInputRef = useRef<HTMLInputElement>(null);
 
   const fetchLogs = useCallback(async (offset = 0, filter = "") => {
     setLogLoading(true);
@@ -58,12 +79,36 @@ export default function SettingsPage() {
       entries.forEach(e => { e.actor_name = nameMap.get(e.actor_id) || "System"; });
     }
 
+    // Resolve student and course names from metadata
+    const studentIds = new Set<string>();
+    const courseIds = new Set<string>();
+    entries.forEach(e => {
+      const m = e.metadata as Record<string, string> | null;
+      if (m?.student_id) studentIds.add(m.student_id);
+      if (m?.course_id) courseIds.add(m.course_id);
+    });
+    const newStudents = new Map(nameCache.students);
+    const newCourses = new Map(nameCache.courses);
+    const unknownStudents = [...studentIds].filter(id => !newStudents.has(id));
+    const unknownCourses = [...courseIds].filter(id => !newCourses.has(id));
+    if (unknownStudents.length > 0) {
+      const { data: s } = await supabase.from("students").select("id,nick_name,first_name,last_name").in("id", unknownStudents);
+      (s ?? []).forEach((st: { id: string; nick_name: string | null; first_name: string; last_name: string }) => {
+        newStudents.set(st.id, st.nick_name ? `${st.nick_name} (${st.first_name})` : `${st.first_name} ${st.last_name}`);
+      });
+    }
+    if (unknownCourses.length > 0) {
+      const { data: c } = await supabase.from("courses").select("id,name").in("id", unknownCourses);
+      (c ?? []).forEach((cr: { id: string; name: string }) => { newCourses.set(cr.id, cr.name); });
+    }
+    setNameCache({ students: newStudents, courses: newCourses });
+
     if (offset === 0) setLogEntries(entries);
     else setLogEntries(prev => [...prev, ...entries]);
     setLogHasMore(entries.length === LOG_PAGE);
     setLogOffset(offset + entries.length);
     setLogLoading(false);
-  }, []);
+  }, [nameCache]);
 
   useEffect(() => { refresh(); }, []);
 
@@ -129,6 +174,90 @@ export default function SettingsPage() {
     refresh();
   }
 
+  function formatMetadata(meta: Record<string, unknown>): { label: string; value: string }[] {
+    const items: { label: string; value: string }[] = [];
+    if (meta.student_id) {
+      items.push({ label: t("student"), value: nameCache.students.get(meta.student_id as string) || (meta.student_id as string).slice(0, 8) });
+    }
+    if (meta.course_id) {
+      items.push({ label: t("course"), value: nameCache.courses.get(meta.course_id as string) || (meta.course_id as string).slice(0, 8) });
+    }
+    if (meta.attended_at) {
+      const d = new Date(meta.attended_at as string);
+      items.push({ label: t("date"), value: d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" }) });
+      items.push({ label: t("time"), value: d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) });
+    }
+    if (meta.amount !== undefined) {
+      items.push({ label: t("amount"), value: `${Number(meta.amount).toLocaleString()} ${t("thb")}` });
+    }
+    if (meta.old_role || meta.new_role) {
+      items.push({ label: t("roleChange"), value: `${meta.old_role || "?"} → ${meta.new_role || "?"}` });
+    }
+    if (meta.purchased_hours !== undefined) {
+      items.push({ label: t("purchasedHours"), value: `${meta.purchased_hours} ${t("hrs")}` });
+    }
+    return items;
+  }
+
+  // LINE config handlers
+  async function saveLineConfig() {
+    setSavingLine(true);
+    try {
+      if (lineConfig) {
+        await supabase.from("line_config").update({ channel_id: lineForm.channel_id }).eq("id", lineConfig.id);
+      } else {
+        await supabase.from("line_config").insert([{ channel_id: lineForm.channel_id }]);
+      }
+      if (lineForm.channel_secret || lineForm.channel_token) {
+        const { error: vaultErr } = await supabase.rpc("save_line_secrets", {
+          p_channel_secret: lineForm.channel_secret,
+          p_channel_token: lineForm.channel_token,
+        });
+        if (vaultErr) { toast(vaultErr.message, "error"); return; }
+      }
+      toast(t("lineConfigSaved"), "success");
+      refetchLineConfig();
+      queryClient.invalidateQueries({ queryKey: ["line_config"] });
+    } finally { setSavingLine(false); }
+  }
+
+  async function toggleLineNotify(key: string, val: boolean) {
+    if (!lineConfig) return;
+    await supabase.from("line_config").update({ [key]: val }).eq("id", lineConfig.id);
+    refetchLineConfig();
+    queryClient.invalidateQueries({ queryKey: ["line_config"] });
+  }
+
+  async function handleQrUpload(file: File) {
+    if (!lineConfig) return;
+    setUploadingQr(true);
+    try {
+      const ext = file.name.split(".").pop() || "png";
+      const path = `payment-qr/${lineConfig.id}.${ext}`;
+      const { error: upErr } = await supabase.storage.from("receipts").upload(path, file, { upsert: true });
+      if (upErr) { toast(upErr.message, "error"); return; }
+      const { data: urlData } = supabase.storage.from("receipts").getPublicUrl(path);
+      const publicUrl = urlData.publicUrl + "?t=" + Date.now();
+      await supabase.from("line_config").update({ payment_qr_url: publicUrl }).eq("id", lineConfig.id);
+      refetchLineConfig();
+      toast(t("qrUploaded"), "success");
+    } finally { setUploadingQr(false); }
+  }
+
+  async function handleQrRemove() {
+    if (!lineConfig) return;
+    await supabase.from("line_config").update({ payment_qr_url: null }).eq("id", lineConfig.id);
+    refetchLineConfig();
+    toast(t("qrRemoved"), "success");
+  }
+
+  const lineAutoToggles = [
+    { key: "auto_checkin_notify", label: t("autoCheckInNotify"), color: POS.success },
+    { key: "auto_limit_notify", label: t("autoLimitNotify"), color: POS.warning },
+    { key: "auto_renewal_reminder", label: t("autoRenewalReminder"), color: POS.danger },
+    { key: "auto_link_notify", label: t("autoLinkNotify"), color: "#06C755" },
+  ];
+
   const actionIcon: Record<string, string> = {
     "attendance.insert": "📥",
     "attendance.cancel": "❌",
@@ -190,6 +319,17 @@ export default function SettingsPage() {
             <ClipboardDocumentListIcon className="w-5 h-5" />
             {t("activityLog")}
           </button>
+          <button
+            onClick={() => { setActiveTab("line"); setLineForm({ channel_id: lineConfig?.channel_id || "", channel_secret: "", channel_token: "" }); }}
+            className="flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-sm transition"
+            style={{
+              background: activeTab === "line" ? LINE_GREEN : "white",
+              color: activeTab === "line" ? "white" : POS.textSecondary,
+              border: `1px solid ${activeTab === "line" ? LINE_GREEN : POS.border}`,
+            }}>
+            <ChatBubbleLeftRightIcon className="w-5 h-5" />
+            LINE
+          </button>
         </div>
       )}
 
@@ -241,10 +381,15 @@ export default function SettingsPage() {
                   </button>
                   {expandedLogId === entry.id && entry.metadata && (
                     <div className="px-4 pb-4 pt-0">
-                      <div className="bg-gray-50 rounded-xl p-3 text-xs font-mono overflow-x-auto" style={{ color: POS.textSecondary }}>
-                        <pre className="whitespace-pre-wrap">{JSON.stringify(entry.metadata, null, 2)}</pre>
+                      <div className="bg-gray-50 rounded-xl p-3 space-y-1.5">
+                        {formatMetadata(entry.metadata as Record<string, unknown>).map((item, i) => (
+                          <div key={i} className="flex items-center gap-2 text-xs">
+                            <span className="font-semibold min-w-[70px]" style={{ color: POS.textMuted }}>{item.label}</span>
+                            <span className="font-medium" style={{ color: POS.textPrimary }}>{item.value}</span>
+                          </div>
+                        ))}
                       </div>
-                      <p className="text-xs mt-2" style={{ color: POS.textMuted }}>
+                      <p className="text-[10px] mt-2" style={{ color: POS.textMuted }}>
                         {new Date(entry.created_at).toLocaleString()}
                       </p>
                     </div>
@@ -261,6 +406,148 @@ export default function SettingsPage() {
                   {logLoading ? t("loading") : t("loadMore")}
                 </button>
               )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ===== LINE CONFIG TAB ===== */}
+      {activeTab === "line" && isOwner && (
+        <div className="space-y-4 max-w-lg">
+          {/* API Credentials */}
+          <Disclosure defaultOpen={!lineConfig?.secrets_configured}>
+            {({ open: isOpen }) => (
+              <div className="rounded-2xl border overflow-hidden bg-white" style={{ borderColor: POS.borderLight }}>
+                <Disclosure.Button className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50">
+                  <div className="flex items-center gap-2.5">
+                    <KeyIcon className="w-4 h-4" style={{ color: POS.warning }} />
+                    <span className="text-sm font-bold" style={{ color: POS.textPrimary }}>{t("apiCredentials")}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {lineConfig?.secrets_configured && <span className="text-[10px] font-semibold" style={{ color: POS.success }}>● {t("connected")}</span>}
+                    <ChevronDownIcon className={`w-4 h-4 transition-transform ${isOpen ? "rotate-180" : ""}`} style={{ color: POS.textMuted }} />
+                  </div>
+                </Disclosure.Button>
+                <Disclosure.Panel className="px-4 pb-4 space-y-3 border-t" style={{ borderColor: POS.borderLight }}>
+                  <div className="pt-3">
+                    <label className="text-[11px] font-semibold block mb-1" style={{ color: POS.textMuted }}>{t("lineChannelId")}</label>
+                    <input type="text" value={lineForm.channel_id} onChange={e => setLineForm({ ...lineForm, channel_id: e.target.value })}
+                      className="w-full border rounded-xl px-3 py-2 text-sm" style={{ borderColor: POS.borderLight }} placeholder="1234567890" />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-semibold block mb-1" style={{ color: POS.textMuted }}>{t("lineChannelSecret")}</label>
+                    <input type="password" value={lineForm.channel_secret} onChange={e => setLineForm({ ...lineForm, channel_secret: e.target.value })}
+                      className="w-full border rounded-xl px-3 py-2 text-sm" style={{ borderColor: POS.borderLight }}
+                      placeholder={lineConfig?.secrets_configured ? "••••••••  (leave blank to keep)" : ""} />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-semibold block mb-1" style={{ color: POS.textMuted }}>{t("lineChannelToken")}</label>
+                    <input type="password" value={lineForm.channel_token} onChange={e => setLineForm({ ...lineForm, channel_token: e.target.value })}
+                      className="w-full border rounded-xl px-3 py-2 text-sm" style={{ borderColor: POS.borderLight }}
+                      placeholder={lineConfig?.secrets_configured ? "••••••••  (leave blank to keep)" : ""} />
+                  </div>
+                  <button onClick={saveLineConfig} disabled={savingLine || !lineForm.channel_id}
+                    className="w-full py-2.5 rounded-xl text-white font-bold text-sm disabled:opacity-50"
+                    style={{ background: LINE_GREEN }}>
+                    {savingLine ? t("saving") : t("saveLineConfig")}
+                  </button>
+                </Disclosure.Panel>
+              </div>
+            )}
+          </Disclosure>
+
+          {/* Webhook URL */}
+          {lineConfig && (
+            <Disclosure>
+              {({ open: isOpen }) => (
+                <div className="rounded-2xl border overflow-hidden bg-white" style={{ borderColor: POS.borderLight }}>
+                  <Disclosure.Button className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50">
+                    <div className="flex items-center gap-2.5">
+                      <LinkIcon className="w-4 h-4" style={{ color: POS.primary }} />
+                      <span className="text-sm font-bold" style={{ color: POS.textPrimary }}>{t("webhookUrl")}</span>
+                    </div>
+                    <ChevronDownIcon className={`w-4 h-4 transition-transform ${isOpen ? "rotate-180" : ""}`} style={{ color: POS.textMuted }} />
+                  </Disclosure.Button>
+                  <Disclosure.Panel className="px-4 pb-4 border-t" style={{ borderColor: POS.borderLight }}>
+                    <p className="text-[10px] mt-3 mb-2" style={{ color: POS.textMuted }}>{t("webhookUrlHint")}</p>
+                    <div className="flex gap-2">
+                      <input type="text" readOnly
+                        value={`${SUPABASE_FUNCTIONS_URL}/line-webhook?school=${user?.school_id || ""}`}
+                        className="flex-1 border rounded-xl px-3 py-2 text-[11px] font-mono truncate" style={{ borderColor: POS.borderLight, background: POS.bgSurface }} />
+                      <button onClick={() => {
+                        navigator.clipboard.writeText(`${SUPABASE_FUNCTIONS_URL}/line-webhook?school=${user?.school_id || ""}`);
+                        toast(t("copied"), "success");
+                      }} className="px-3 py-2 rounded-xl text-xs font-bold text-white flex-shrink-0 flex items-center gap-1" style={{ background: LINE_GREEN }}>
+                        <ClipboardDocumentIcon className="w-3.5 h-3.5" /> {t("copy")}
+                      </button>
+                    </div>
+                  </Disclosure.Panel>
+                </div>
+              )}
+            </Disclosure>
+          )}
+
+          {/* Auto Notifications */}
+          {lineConfig && (
+            <div className="rounded-2xl border overflow-hidden bg-white" style={{ borderColor: POS.borderLight }}>
+              <div className="flex items-center gap-2.5 px-4 py-3 border-b" style={{ borderColor: POS.borderLight }}>
+                <BellAlertIcon className="w-4 h-4" style={{ color: POS.danger }} />
+                <span className="text-sm font-bold" style={{ color: POS.textPrimary }}>{t("autoNotifications")}</span>
+              </div>
+              <div className="divide-y" style={{ borderColor: POS.borderLight }}>
+                {lineAutoToggles.map(opt => (
+                  <div key={opt.key} className="flex items-center justify-between px-4 py-3">
+                    <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                      <CheckCircleIcon className="w-4 h-4 shrink-0" style={{ color: opt.color }} />
+                      <span className="text-[13px] font-semibold" style={{ color: POS.textPrimary }}>{opt.label}</span>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer shrink-0 ml-2">
+                      <input type="checkbox" checked={(lineConfig as any)[opt.key] ?? true}
+                        onChange={e => toggleLineNotify(opt.key, e.target.checked)} className="sr-only peer" />
+                      <div className="w-10 h-5 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-green-500" />
+                    </label>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Payment QR Code */}
+          {lineConfig && (
+            <div className="rounded-2xl border overflow-hidden bg-white" style={{ borderColor: POS.borderLight }}>
+              <div className="flex items-center gap-2.5 px-4 py-3 border-b" style={{ borderColor: POS.borderLight }}>
+                <QrCodeIcon className="w-4 h-4" style={{ color: "#8B5CF6" }} />
+                <span className="text-sm font-bold" style={{ color: POS.textPrimary }}>{t("paymentQrCode")}</span>
+              </div>
+              <div className="px-4 py-4">
+                <p className="text-[10px] mb-3" style={{ color: POS.textMuted }}>{t("paymentQrHint")}</p>
+                {lineConfig.payment_qr_url ? (
+                  <div className="flex flex-col items-center gap-2">
+                    <img src={lineConfig.payment_qr_url} alt="Payment QR" className="w-40 h-40 object-contain rounded-xl border" style={{ borderColor: POS.borderLight }} />
+                    <div className="flex gap-2">
+                      <button onClick={() => qrInputRef.current?.click()}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold border hover:bg-gray-50"
+                        style={{ borderColor: POS.borderLight, color: POS.textSecondary }}>
+                        <PhotoIcon className="w-3.5 h-3.5" /> {t("replace")}
+                      </button>
+                      <button onClick={handleQrRemove}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold border hover:bg-red-50"
+                        style={{ borderColor: POS.borderLight, color: POS.danger }}>
+                        <TrashIcon className="w-3.5 h-3.5" /> {t("remove")}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button onClick={() => qrInputRef.current?.click()} disabled={uploadingQr}
+                    className="w-full py-6 rounded-xl border-2 border-dashed flex flex-col items-center gap-1.5 hover:bg-purple-50/50 transition-colors disabled:opacity-50"
+                    style={{ borderColor: "#8B5CF680", color: "#8B5CF6" }}>
+                    <PhotoIcon className="w-6 h-6" />
+                    <span className="text-xs font-bold">{uploadingQr ? t("uploading") : t("uploadQrCode")}</span>
+                  </button>
+                )}
+                <input ref={qrInputRef} type="file" accept="image/*" className="hidden"
+                  onChange={e => { const f = e.target.files?.[0]; if (f) handleQrUpload(f); e.target.value = ""; }} />
+              </div>
             </div>
           )}
         </div>

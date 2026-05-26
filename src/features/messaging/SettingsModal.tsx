@@ -36,7 +36,7 @@ export default function SettingsModal({ open, onClose, config, schoolId, onOpenT
   const { toast } = useToast();
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const isOwner = user?.role === "owner";
+  const isOwner = user?.role === "owner" || user?.role === "superadmin";
 
   const isConfigured = config?.secrets_configured ?? false;
   const [configForm, setConfigForm] = useState({ channel_id: config?.channel_id || "", channel_secret: "", channel_token: "" });
@@ -107,7 +107,7 @@ export default function SettingsModal({ open, onClose, config, schoolId, onOpenT
   const autoToggles = [
     { key: "auto_checkin_notify", label: t("autoCheckInNotify"), desc: t("autoCheckInNotifyDesc"), color: POS.success, icon: "✅" },
     { key: "auto_limit_notify", label: t("autoLimitNotify"), desc: t("autoLimitNotifyDesc"), color: POS.warning, icon: "⚠️" },
-    { key: "auto_renewal_notify", label: t("autoRenewalReminder"), desc: t("autoRenewalReminderDesc"), color: POS.danger, icon: "🔴" },
+    { key: "auto_renewal_reminder", label: t("autoRenewalReminder"), desc: t("autoRenewalReminderDesc"), color: POS.danger, icon: "🔴" },
     { key: "auto_link_notify", label: t("autoLinkNotify"), desc: t("autoLinkNotifyDesc"), color: "#06C755", icon: "💚" },
   ];
 
@@ -140,8 +140,8 @@ export default function SettingsModal({ open, onClose, config, schoolId, onOpenT
 
           <div className="px-5 py-4 space-y-3">
 
-            {/* Section 1: API Credentials — collapsible */}
-            <Disclosure defaultOpen={!isConfigured}>
+            {/* Section 1: API Credentials — owner/superadmin only */}
+            {isOwner && <Disclosure defaultOpen={!isConfigured}>
               {({ open: isOpen }) => (
                 <div className="rounded-2xl border overflow-hidden" style={{ borderColor: POS.borderLight }}>
                   <Disclosure.Button className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors">
@@ -172,10 +172,10 @@ export default function SettingsModal({ open, onClose, config, schoolId, onOpenT
                   </Disclosure.Panel>
                 </div>
               )}
-            </Disclosure>
+            </Disclosure>}
 
-            {/* Section 2: Webhook URL — collapsible */}
-            {config && (
+            {/* Section 2: Webhook URL — owner/superadmin only */}
+            {isOwner && config && (
               <Disclosure>
                 {({ open: isOpen }) => (
                   <div className="rounded-2xl border overflow-hidden" style={{ borderColor: POS.borderLight }}>
@@ -289,13 +289,13 @@ export default function SettingsModal({ open, onClose, config, schoolId, onOpenT
 
           {/* Footer actions — sticky */}
           <div className="sticky bottom-0 bg-white rounded-b-3xl px-5 py-4 border-t flex gap-3" style={{ borderColor: POS.borderLight }}>
-            <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border font-bold text-sm hover:bg-gray-50"
-              style={{ borderColor: POS.borderLight, color: POS.textMuted }}>{t("cancel")}</button>
-            <button onClick={handleSave} disabled={saving || !configForm.channel_id}
+            <button onClick={onClose} className={`${isOwner ? "flex-1" : "w-full"} py-2.5 rounded-xl border font-bold text-sm hover:bg-gray-50`}
+              style={{ borderColor: POS.borderLight, color: POS.textMuted }}>{isOwner ? t("cancel") : t("close")}</button>
+            {isOwner && <button onClick={handleSave} disabled={saving || !configForm.channel_id}
               className="flex-1 py-2.5 rounded-xl text-white font-bold text-sm disabled:opacity-50"
               style={{ background: LINE_GREEN }}>
               {saving ? t("saving") : t("saveLineConfig")}
-            </button>
+            </button>}
           </div>
         </Dialog.Panel>
       </div>

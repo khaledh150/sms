@@ -36,6 +36,7 @@ export default function RenewCourseModal({ courseId, mode, onClose, student, cou
     setError("");
     if (!courseId) return;
     if (hours < 1) { setError(t("hoursMustBeOne")); return; }
+    if (!file) { setError(t("receiptRequiredError")); return; }
 
     let receiptUrls: string[] = [];
     if (file) {
@@ -96,7 +97,7 @@ export default function RenewCourseModal({ courseId, mode, onClose, student, cou
           </div>
           <div>
             <label className="text-xs font-semibold" style={{ color: POS.textSecondary }}>
-              {t("uploadReceipt")} <span className="font-normal">{t("receiptOptional")}</span>
+              {t("uploadReceipt")} <span className="font-normal text-red-500">*</span>
             </label>
             <input type="file" accept="image/*,application/pdf" className="mt-1"
               onChange={e => setFile(e.target.files?.[0] || null)} />

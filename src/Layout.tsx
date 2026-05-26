@@ -24,7 +24,6 @@ import LanguageSwitcher from "./LanguageSwitcher";
 import { usePendingReviewCount } from "./hooks/useApplications";
 import OfflineBanner from "./OfflineBanner";
 import { INACTIVITY_TIMEOUT_MS, INACTIVITY_THROTTLE_MS } from "./constants";
-import { validateImageFile } from "./hooks/useFileValidation";
 import { useToast } from "./hooks/useToast";
 import type { Notification } from "./types";
 import { timeAgo } from "./utils/time";
@@ -69,17 +68,13 @@ export default function Layout() {
   const { t } = useTranslation();
   const nav = useNavigate();
   const loc = useLocation();
-  const { user, setUser } = useAuth();
+  const { user } = useAuth();
   const { toast } = useToast();
   const isAdmin = user?.role === "owner" || user?.role === "admin" || user?.role === "superadmin";
   const { data: pendingReviewCount = 0 } = usePendingReviewCount(isAdmin);
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [showProfileModal, setShowProfileModal] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [profileUrl, setProfileUrl] = useState(`${import.meta.env.BASE_URL}avatar.png`);
-  const fileInput = useRef<HTMLInputElement | null>(null);
   const bellRef = useRef<HTMLDivElement | null>(null);
 
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -97,13 +92,6 @@ export default function Layout() {
       document.exitFullscreen();
     }
   };
-
-  useEffect(() => {
-    if (!user?.id) return setProfileUrl(`${import.meta.env.BASE_URL}avatar.png`);
-    supabase.from("profiles").select("avatar_url").eq("id", user.id).single()
-      .then(({ data }) => setProfileUrl(data?.avatar_url || `${import.meta.env.BASE_URL}avatar.png`));
-  }, [user]);
-
 
   function notificationLabel(n: Notification): string {
     const nick = n.student_name || "";
@@ -186,24 +174,6 @@ export default function Layout() {
     reset();
     return () => { clearTimeout(timer); events.forEach(e => window.removeEventListener(e, reset)); };
   }, [nav]);
-
-  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file || !user?.id) return;
-    const validationError = validateImageFile(file);
-    if (validationError) { toast(validationError, "error"); return; }
-    setUploading(true);
-    try {
-      const ext = file.name.split(".").pop();
-      const path = `${user.id}-${Date.now()}.${ext}`;
-      await supabase.storage.from("avatars").upload(path, file, { upsert: true });
-      const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(path);
-      await supabase.from("profiles").update({ avatar_url: urlData.publicUrl }).eq("id", user.id);
-      setProfileUrl(urlData.publicUrl);
-      setShowProfileModal(false);
-    } catch (err: any) { toast(t("uploadFailed", { message: err.message }), "error"); }
-    setUploading(false);
-  }
 
   // Scroll to top on route change
   useEffect(() => {
@@ -339,12 +309,6 @@ export default function Layout() {
               {isFullscreen ? <ArrowsPointingInIcon className="w-5 h-5 sm:w-6 sm:h-6" /> : <ArrowsPointingOutIcon className="w-5 h-5 sm:w-6 sm:h-6" />}
             </button>
 
-            <button onClick={() => setShowProfileModal(true)} className="p-0 rounded-[1.2rem] overflow-hidden min-w-[48px] min-h-[48px] flex items-center justify-center" style={{ background: "none" }} aria-label="Profile">
-              <img src={profileUrl || `${import.meta.env.BASE_URL}avatar.png`} alt="Profile"
-                className="w-11 h-11 sm:w-12 sm:h-12 rounded-[1.2rem] border-2 shadow-sm object-cover transition-transform hover:scale-105"
-                style={{ borderColor: "#fff" }}
-                onError={() => setProfileUrl(`${import.meta.env.BASE_URL}avatar.png`)} />
-            </button>
           </div>
         </header>
 
@@ -352,8 +316,8 @@ export default function Layout() {
         <main className="flex-1 w-full" style={{ paddingBottom: keyboardOpen ? 0 : 58 }}><Outlet /></main>
 
         {/* BOTTOM TAB BAR — hidden when keyboard is open */}
-        <nav className="bottom-nav fixed bottom-0 left-0 right-0 z-40 glass border-t shadow-[0_-10px_20px_rgba(0,0,0,0.03)] flex items-stretch justify-around px-2 pb-safe transition-transform duration-200"
-          style={{ transform: keyboardOpen ? "translateY(100%)" : "translateY(0)", borderTopColor: "rgba(255,255,255,0.4)", minHeight: 52, paddingBottom: "max(env(safe-area-inset-bottom), 4px)", paddingTop: 2 }}>
+        <nav className="bottom-nav fixed bottom-0 left-0 right-0 z-40 border-t shadow-[0_-4px_12px_rgba(0,0,0,0.06)] flex items-stretch justify-around px-2 pb-safe transition-transform duration-200"
+          style={{ transform: keyboardOpen ? "translateY(100%)" : "translateY(0)", background: "#fff", borderTopColor: "#e5e7eb", minHeight: 52, paddingBottom: "max(env(safe-area-inset-bottom), 4px)", paddingTop: 2 }}>
           {visibleTabs.map(tab => {
           const isActive = activeTab === tab.key;
           const Icon = isActive ? tab.iconActive : tab.icon;
@@ -379,37 +343,6 @@ export default function Layout() {
         })}
       </nav>
 
-          {/* PROFILE MODAL (Ultra Soft) */}
-        {showProfileModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(255,255,255,0.2)", backdropFilter: "blur(12px)" }}
-            onClick={() => setShowProfileModal(false)}>
-            <div className="bg-white/80 rounded-[3rem] shadow-2xl p-10 max-w-sm w-full mx-4 flex flex-col items-center glass-card border border-white/50"
-              onClick={e => e.stopPropagation()}>
-              <img src={profileUrl} alt="Profile" className="w-32 h-32 rounded-[2rem] mb-6 shadow-xl object-cover border-4 border-white" />
-              <input ref={fileInput as React.RefObject<HTMLInputElement>} type="file" accept="image/*" className="mb-4 text-sm font-bold text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" onChange={handleUpload} disabled={uploading} />
-
-              <div className="w-full mb-4">
-                <label className="text-xs font-bold mb-1 block text-center" style={{ color: POS.textMuted }}>{t("displayName")}</label>
-                <input type="text" defaultValue={user?.full_name || ""}
-                  onBlur={async (e) => {
-                    const val = e.target.value.trim();
-                    if (val !== (user?.full_name || "")) {
-                      await supabase.from("profiles").update({ full_name: val }).eq("id", user!.id);
-                      setUser({ ...user!, full_name: val });
-                      toast(t("saved"), "success");
-                    }
-                  }}
-                  className="w-full rounded-xl px-4 py-3 text-center font-bold border"
-                  style={{ borderColor: POS.borderLight, color: POS.textPrimary }}
-                  placeholder={user?.username || user?.email?.split("@")[0] || ""} />
-              </div>
-
-              <button onClick={() => setShowProfileModal(false)} className="btn-gummy px-8 py-4 w-full rounded-[1.5rem] text-white font-bouncy text-xl shadow-lg" style={{ background: POS.primaryGradient }} disabled={uploading}>
-                {t("close")}
-              </button>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

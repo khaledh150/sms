@@ -1,11 +1,12 @@
-import { useMemo, useEffect } from "react";
+import { useMemo, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
+import { Dialog } from "@headlessui/react";
 import {
   UsersIcon,
   AcademicCapIcon,
-  CalendarDaysIcon,
+  BookOpenIcon,
   ClipboardDocumentCheckIcon,
   UserPlusIcon,
   ExclamationTriangleIcon,
@@ -27,6 +28,8 @@ export default function HomePage() {
   const { user } = useAuth();
   const { toast } = useToast();
   const isAdmin = user?.role === "owner" || user?.role === "admin" || user?.role === "superadmin";
+
+  const [expandedFeedCourse, setExpandedFeedCourse] = useState<number | null>(null);
 
   const { data: school } = useQuery({
     queryKey: ["my_school", user?.school_id],
@@ -149,14 +152,11 @@ export default function HomePage() {
   return (
     <div className="min-h-screen pb-24" style={{ background: POS.bgMain }}>
       {/* Top Hero Banner */}
-      <div className="relative pt-5 pb-10 px-6 overflow-hidden rounded-b-[2.5rem]" style={{ background: POS.primaryGradient, boxShadow: POS.shadowMd }}>
+      <div className="relative pt-4 pb-8 px-6 overflow-hidden rounded-b-[2.5rem]" style={{ background: POS.primaryGradient, boxShadow: POS.shadowMd }}>
         <motion.div animate={{ rotate: 360 }} transition={{ duration: 60, repeat: Infinity, ease: "linear" }}
           className="absolute -top-20 -right-20 w-52 h-52 rounded-full mix-blend-overlay opacity-10 bg-white" />
         <div className="relative z-10 text-center">
-          <p className="text-white/70 text-xs font-extrabold tracking-[0.2em] uppercase mb-1">{school?.name || "Wonder Kids"}</p>
-          <h1 className="text-2xl sm:text-3xl font-bouncy tracking-tight text-white drop-shadow-md">
-            {t("goodMorning")}, {user?.full_name || user?.username || user?.email?.split("@")[0] || "Admin"}
-          </h1>
+          <p className="text-white/90 text-lg font-bouncy tracking-wide">{school?.name || "Wonder Kids"}</p>
         </div>
       </div>
 
@@ -164,17 +164,17 @@ export default function HomePage() {
         {/* Action Buttons */}
         <div className="grid grid-cols-2 gap-3 mb-3">
           <motion.button onClick={() => nav("/admissions")} whileTap={{ scale: 0.95 }}
-            className="btn-gummy-sm flex items-center justify-center p-5 gap-3 rounded-[1.5rem] bg-white shadow-md"
+            className="btn-gummy-sm flex flex-col items-center justify-center p-6 gap-2 rounded-[1.5rem] bg-white shadow-md"
             style={{ border: `2px solid ${POS.borderLight}` }}>
-            <UserPlusIcon className="w-8 h-8" style={{ color: "#E91E63" }} />
-            <span className="text-sm font-bouncy leading-tight" style={{ color: POS.textPrimary }}>{t("newStudent")}</span>
+            <UserPlusIcon className="w-10 h-10" style={{ color: "#E91E63" }} />
+            <span className="text-base font-bouncy leading-tight" style={{ color: POS.textPrimary }}>{t("newStudent")}</span>
           </motion.button>
 
-          <motion.button onClick={() => nav("/admissions?mode=existing")} whileTap={{ scale: 0.95 }}
-            className="btn-gummy-sm flex items-center justify-center p-5 gap-3 rounded-[1.5rem] bg-white shadow-md"
+          <motion.button onClick={() => nav("/courses")} whileTap={{ scale: 0.95 }}
+            className="btn-gummy-sm flex flex-col items-center justify-center p-6 gap-2 rounded-[1.5rem] bg-white shadow-md"
             style={{ border: `2px solid ${POS.borderLight}` }}>
-            <UsersIcon className="w-8 h-8" style={{ color: POS.info }} />
-            <span className="text-sm font-bouncy leading-tight" style={{ color: POS.textPrimary }}>{t("addExistingStudent")}</span>
+            <BookOpenIcon className="w-10 h-10" style={{ color: POS.info }} />
+            <span className="text-base font-bouncy leading-tight" style={{ color: POS.textPrimary }}>{t("checkCourse")}</span>
           </motion.button>
         </div>
 
@@ -208,37 +208,86 @@ export default function HomePage() {
               <p className="font-bold text-sm" style={{ color: POS.textMuted }}>{t("noCheckInsToday")}</p>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {feedByCourse.map((group, i) => {
                 const colors = [POS.primary, POS.success, POS.info, POS.warning, "#E91E63"];
                 const color = colors[i % colors.length];
+                const MAX_VISIBLE = 5;
+                const visibleEntries = group.entries.slice(0, MAX_VISIBLE);
+                const hasMore = group.entries.length > MAX_VISIBLE;
                 return (
                   <div key={i}>
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm font-bold" style={{ background: color }}>
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <div className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold" style={{ background: color }}>
                         {group.courseName.charAt(0)}
                       </div>
-                      <span className="font-bouncy text-lg" style={{ color: POS.textPrimary }}>{group.courseName}</span>
+                      <span className="font-bouncy text-base" style={{ color: POS.textPrimary }}>{group.courseName}</span>
                       <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: `${color}15`, color }}>
                         {group.entries.length}
                       </span>
                     </div>
-                    <div className="space-y-1 ml-10">
-                      {group.entries.map((entry, j) => (
-                        <div key={j} className="flex items-center justify-between py-1.5 px-3 rounded-lg text-sm"
+                    <div className="space-y-0.5 ml-9">
+                      {visibleEntries.map((entry, j) => (
+                        <div key={j} className="flex items-center gap-2 py-1 px-2 rounded-lg text-sm cursor-pointer"
                           style={{ background: POS.bgSurface }}
                           onClick={() => nav(`/students/${entry.studentId}`)}
                           role="button">
+                          <span className="text-xs font-bold w-5 text-center" style={{ color: POS.textMuted }}>{j + 1}</span>
                           <span className="font-bold" style={{ color: POS.textPrimary }}>{entry.studentName}</span>
                         </div>
                       ))}
+                      {hasMore && (
+                        <button onClick={() => setExpandedFeedCourse(i)}
+                          className="w-full text-center py-1.5 text-xs font-bold rounded-lg"
+                          style={{ color: POS.primary, background: `${POS.primary}08`, minHeight: "auto" }}>
+                          {t("seeMore")} ({group.entries.length - MAX_VISIBLE} {t("more")})
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
               })}
             </div>
+
           )}
         </div>
+
+        {/* Expanded feed modal */}
+        <Dialog open={expandedFeedCourse !== null} onClose={() => setExpandedFeedCourse(null)} className="relative z-50">
+          <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
+          <div className="fixed inset-0 flex items-center justify-center p-4">
+            <Dialog.Panel className="bg-white rounded-2xl p-5 max-w-md w-full mx-4 shadow-xl max-h-[80vh] overflow-y-auto">
+              {expandedFeedCourse !== null && feedByCourse[expandedFeedCourse] && (
+                <>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-bouncy text-lg" style={{ color: POS.textPrimary }}>
+                      {feedByCourse[expandedFeedCourse].courseName}
+                    </h3>
+                    <span className="text-sm font-bold px-2 py-0.5 rounded-full" style={{ background: POS.bgSurface, color: POS.primary }}>
+                      {feedByCourse[expandedFeedCourse].entries.length}
+                    </span>
+                  </div>
+                  <div className="space-y-0.5">
+                    {feedByCourse[expandedFeedCourse].entries.map((entry, j) => (
+                      <div key={j} className="flex items-center gap-2 py-1.5 px-2 rounded-lg text-sm cursor-pointer"
+                        style={{ background: POS.bgSurface }}
+                        onClick={() => { setExpandedFeedCourse(null); nav(`/students/${entry.studentId}`); }}
+                        role="button">
+                        <span className="text-xs font-bold w-5 text-center" style={{ color: POS.textMuted }}>{j + 1}</span>
+                        <span className="font-bold" style={{ color: POS.textPrimary }}>{entry.studentName}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <button onClick={() => setExpandedFeedCourse(null)}
+                    className="w-full mt-4 py-3 rounded-xl border font-bold text-sm"
+                    style={{ borderColor: POS.border, color: POS.textSecondary }}>
+                    {t("close")}
+                  </button>
+                </>
+              )}
+            </Dialog.Panel>
+          </div>
+        </Dialog>
 
         {/* Needs Renewal + Approaching Renewal */}
         {(overlimitStudents.length > 0 || approachingStudents.length > 0) && (
@@ -314,14 +363,7 @@ export default function HomePage() {
         )}
 
         {/* Stats Cards — at the bottom */}
-        <div className="grid grid-cols-3 gap-4">
-          <div className="glass-card rounded-[2rem] p-5 text-center flex flex-col items-center justify-center"
-            style={{ border: "2px solid #FFE58F", background: "rgba(255, 251, 230, 0.9)" }}>
-            <CalendarDaysIcon className="w-8 h-8 mb-2 drop-shadow-sm" style={{ color: "#FAAD14" }} />
-            <div className="text-3xl font-bouncy leading-none" style={{ color: "#D48806" }}>{expected.length}</div>
-            <div className="text-[10px] font-extrabold mt-1 uppercase tracking-wider" style={{ color: "#FAAD14" }}>{t("expected")}</div>
-          </div>
-
+        <div className="grid grid-cols-2 gap-4">
           <div className="glass-card rounded-[2rem] p-5 text-center flex flex-col items-center justify-center"
             style={{ border: "2px solid #91D5FF", background: "rgba(230, 247, 255, 0.9)" }}>
             <AcademicCapIcon className="w-8 h-8 mb-2 drop-shadow-sm" style={{ color: "#1890FF" }} />

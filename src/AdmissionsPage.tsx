@@ -127,6 +127,7 @@ export default function AdmissionsPage(_props: { publicMode?: boolean }) {
 
   async function handleSubmit() {
     if (!validateStep()) return;
+    if (!isExistingMode && files.length === 0) { setError(t("receiptRequiredError")); return; }
     setSaving(true); setError("");
     const urls: string[] = [];
     for (const f of files) {
@@ -469,7 +470,7 @@ export default function AdmissionsPage(_props: { publicMode?: boolean }) {
             {/* Receipt upload */}
             <div>
               <label className="text-xs font-semibold" style={{ color: POS.textSecondary }}>
-                {t("paymentReceiptOptional")}
+                {isExistingMode ? t("paymentReceiptOptional") : <>{t("uploadReceipt")} <span className="text-red-500">*</span></>}
               </label>
               <button type="button" onClick={() => fileRef.current?.click()}
                 className="w-full mt-1 rounded-xl border-2 border-dashed px-4 py-4 text-sm font-semibold text-center transition"

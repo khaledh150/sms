@@ -6,6 +6,7 @@ export interface MessageTemplates {
   approval: string;
   link_welcome: string;
   renewal_payment: string;
+  new_course: string;
 }
 
 export interface LineConfig {

@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { PlusIcon, PencilSquareIcon, TrashIcon } from "@heroicons/react/24/outline";
+import { PlusIcon, PencilSquareIcon, TrashIcon, CameraIcon } from "@heroicons/react/24/outline";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { supabase } from "../../supabaseClient";
 import { useAuth } from "../../AuthContext";
-import { useStudent, useStudentEnrollments } from "../../hooks/useStudents";
+import { useStudent, useStudentEnrollments, useEnrollmentHistory } from "../../hooks/useStudents";
 import { useStudentAttendance } from "../../hooks/useAttendance";
 import { useCourses } from "../../hooks/useCourses";
 import { fetchPendingChangesForStudent } from "../../services/applications";
@@ -31,6 +31,8 @@ export default function StudentProfilePage() {
   const { data: enrollments = [] } = useStudentEnrollments(id);
   const { data: attendance = [] } = useStudentAttendance(id);
   const { data: courses = [] } = useCourses();
+  const { data: enrollmentHistory = [] } = useEnrollmentHistory(id);
+
   const { data: pendingChanges = [] } = useQuery({
     queryKey: ["pending_changes_student", id],
     queryFn: () => fetchPendingChangesForStudent(id!),
@@ -73,6 +75,8 @@ export default function StudentProfilePage() {
   const [renewMode, setRenewMode] = useState<"renew" | "add">("renew");
   const [lateCheckInCourse, setLateCheckInCourse] = useState<string | null>(null);
   const [cancelTarget, setCancelTarget] = useState<{ enrollmentId: string; courseId: string } | null>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   const isAdmin = user?.role === "owner" || user?.role === "admin" || user?.role === "superadmin";
   const courseMap = Object.fromEntries(courses.map(c => [c.id, c]));
@@ -91,6 +95,24 @@ export default function StudentProfilePage() {
 
   function getAllAttendanceForCourse(courseId: string) {
     return attendance.filter(a => a.course_id === courseId && a.approved_by);
+  }
+
+  async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !student) return;
+    setUploadingPhoto(true);
+    try {
+      const ext = file.name.split(".").pop() || "jpg";
+      const path = `${student.id}.${ext}`;
+      await supabase.storage.from("student-photos").upload(path, file, { upsert: true });
+      const { data: { publicUrl } } = supabase.storage.from("student-photos").getPublicUrl(path);
+      const url = `${publicUrl}?t=${Date.now()}`;
+      await supabase.from("students").update({ photo_url: url }).eq("id", student.id);
+      queryClient.invalidateQueries({ queryKey: ["student", id] });
+      queryClient.invalidateQueries({ queryKey: ["students"] });
+      queryClient.invalidateQueries({ queryKey: ["all_enrolled_students"] });
+    } finally { setUploadingPhoto(false); }
+    if (photoInputRef.current) photoInputRef.current.value = "";
   }
 
   async function handleDeleteStudent() {
@@ -120,10 +142,24 @@ export default function StudentProfilePage() {
       {/* Student Info Card */}
       <div className="bg-white rounded-2xl p-5 border" style={{ borderColor: POS.borderPurple, boxShadow: POS.shadowMd }}>
         <div className="flex items-start gap-4">
-          <div className="w-16 h-16 rounded-full flex items-center justify-center text-white text-2xl font-bold shrink-0"
-            style={{ background: POS.primary }}>
-            {(student.nick_name || student.first_name || "?").charAt(0).toUpperCase()}
-          </div>
+          <input type="file" ref={photoInputRef} accept="image/*" className="hidden" onChange={handlePhotoUpload} />
+          <button onClick={() => photoInputRef.current?.click()} disabled={uploadingPhoto}
+            className="w-16 h-16 rounded-full flex items-center justify-center text-white text-2xl font-bold shrink-0 relative overflow-hidden group"
+            style={{ background: POS.primary, minHeight: "auto" }}>
+            {student.photo_url ? (
+              <img src={student.photo_url} alt="" className="w-full h-full object-cover" />
+            ) : (
+              (student.nick_name || student.first_name || "?").charAt(0).toUpperCase()
+            )}
+            <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+              <CameraIcon className="w-5 h-5 text-white" />
+            </div>
+            {uploadingPhoto && (
+              <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                <div className="w-6 h-6 rounded-full border-2 border-white border-t-transparent animate-spin" />
+              </div>
+            )}
+          </button>
           <div className="flex-1 min-w-0">
             <h1 className="text-xl font-bold" style={{ color: POS.textPrimary }}>
               {student.nick_name && <span style={{ color: POS.primary }}>"{student.nick_name}" </span>}
@@ -231,6 +267,34 @@ export default function StudentProfilePage() {
           </div>
         )}
       </section>
+
+      {/* Enrollment History — admin only */}
+      {isAdmin && enrollmentHistory.length > 0 && (
+        <section>
+          <h2 className="text-lg font-bold mb-3" style={{ color: POS.textPrimary }}>{t("enrollmentHistory")}</h2>
+          <div className="space-y-2">
+            {enrollmentHistory.map(h => (
+              <div key={h.id} className="bg-white rounded-xl p-3 border text-sm" style={{ borderColor: POS.borderLight }}>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-bold" style={{ color: POS.primary }}>{h.course_name}</span>
+                  <span className="text-xs" style={{ color: POS.textMuted }}>
+                    {new Date(h.renewed_at).toLocaleDateString("en-GB")}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs" style={{ color: POS.textSecondary }}>
+                  <span>{h.used_hours}/{h.purchased_hours} {t("hrs")}</span>
+                  {h.price != null && <span>{t("price")}: ฿{h.price}</span>}
+                  {h.book_info && <span>{t("book")}: {h.book_info}</span>}
+                  {h.receipt_url && (
+                    <a href={h.receipt_url} target="_blank" rel="noopener noreferrer"
+                      className="underline" style={{ color: POS.info }}>{t("viewReceipt")}</a>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Modals */}
       <DeleteStudentModal

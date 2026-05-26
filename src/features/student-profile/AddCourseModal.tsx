@@ -42,6 +42,7 @@ export default function AddCourseModal({ open, onClose, student, courses, enroll
     if (!addCourse) { setAddError(t("pleaseSelectCourse")); return; }
     if (Object.keys(addDays).length === 0) { setAddError(t("pleaseSelectDay")); return; }
     if (addHours < 1) { setAddError(t("hoursMustBeOne")); return; }
+    if (!addFile) { setAddError(t("receiptRequiredError")); return; }
 
     setSaving(true);
     let receiptUrls: string[] = [];
@@ -153,15 +154,10 @@ export default function AddCourseModal({ open, onClose, student, courses, enroll
 
           <div>
             <label className="text-xs font-semibold" style={{ color: POS.textSecondary }}>
-              {t("uploadReceipt")} <span className="font-normal">{t("receiptOptional")}</span>
+              {t("uploadReceipt")} <span className="font-normal text-red-500">*</span>
             </label>
             <input type="file" accept="image/*,application/pdf" className="mt-1"
               onChange={e => setAddFile(e.target.files?.[0] || null)} />
-            {!addFile && (
-              <p className="text-xs mt-1 px-2 py-1 rounded-lg" style={{ background: POS.warningLight, color: POS.warning }}>
-                {t("receiptTip")}
-              </p>
-            )}
           </div>
         </div>
 

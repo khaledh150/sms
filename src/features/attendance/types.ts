@@ -6,6 +6,7 @@ export interface StudentForGrid {
   purchased_hours: number;
   initial_used_hours: number;
   isExpectedToday: boolean;
+  photo_url: string | null;
 }
 
 export interface CourseGroup {

@@ -70,9 +70,13 @@ export default memo(function StudentGrid({ students, courseId, isHere, todayUsed
                    <span className="text-white text-5xl drop-shadow-xl font-extrabold">✓ {todayHrs > 1 ? todayHrs + "h" : ""}</span>
                  </motion.div>
                )}
-               <div className="text-[5rem] font-bold opacity-80 drop-shadow-lg" style={{ color: POS.primaryLight }}>
-                    {(stu.nick_name || stu.first_name || "?").charAt(0).toUpperCase()}
-                  </div>
+               {stu.photo_url ? (
+                 <img src={stu.photo_url} alt="" className="w-full h-full object-cover" />
+               ) : (
+                 <div className="text-[5rem] font-bold opacity-80 drop-shadow-lg" style={{ color: POS.primaryLight }}>
+                   {(stu.nick_name || stu.first_name || "?").charAt(0).toUpperCase()}
+                 </div>
+               )}
             </div>
 
             <div className="flex flex-col items-center justify-center w-full h-[45%] bg-white/95 px-2 glass-card">

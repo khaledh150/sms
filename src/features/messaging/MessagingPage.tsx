@@ -17,7 +17,6 @@ import ChatView from "./ChatView";
 import ChatListItem from "./ChatListItem";
 import UnlinkedAccountsSection from "./UnlinkedAccountsSection";
 import BroadcastModal from "./BroadcastModal";
-import SettingsModal from "./SettingsModal";
 import TemplatesModal from "./TemplatesModal";
 import { LINE_GREEN, LINE_BG } from "./types";
 
@@ -35,7 +34,6 @@ export default function MessagingPage() {
   const { data: unlinkedUsers = [] } = useUnlinkedLineUsers();
 
   const [search, setSearch] = useState("");
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [broadcastOpen, setBroadcastOpen] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [chatStudentId, setChatStudentId] = useState<string | null>(null);
@@ -112,7 +110,7 @@ export default function MessagingPage() {
           )}
         </div>
         {isAdmin && (
-          <button onClick={() => setSettingsOpen(true)} className="p-2 rounded-full hover:bg-white/10 transition" style={{ minHeight: "auto" }}>
+          <button onClick={() => setTemplatesOpen(true)} className="p-2 rounded-full hover:bg-white/10 transition" style={{ minHeight: "auto" }}>
             <Cog6ToothIcon className="w-5 h-5 text-white" />
           </button>
         )}
@@ -186,14 +184,6 @@ export default function MessagingPage() {
         courses={courses}
         enrollments={enrollments}
         isConfigured={isConfigured}
-      />
-
-      <SettingsModal
-        open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-        config={config ?? null}
-        schoolId={user?.school_id || ""}
-        onOpenTemplates={() => setTemplatesOpen(true)}
       />
 
       <TemplatesModal

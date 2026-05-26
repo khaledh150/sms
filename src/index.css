@@ -15,7 +15,7 @@ html {
 
 /* Base typography — readable at arm's length */
 body {
-  font-family: 'Nunito', system-ui, -apple-system, sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
   color: #2D2D3F;
   background: #F4F7FE; /* Premium ultra-soft premium blue-white */
   background-image: radial-gradient(circle at 50% 0%, #ffffff 0%, transparent 70%),
