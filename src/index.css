@@ -43,7 +43,7 @@ a,
 input,
 select,
 textarea {
-  min-height: 44px;
+  min-height: 56px;
 }
 
 /* Glassmorphism helpers */

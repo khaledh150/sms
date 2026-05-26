@@ -1,6 +1,19 @@
 // src/services/applications.ts — Admissions, changes, review
 import { supabase } from "../supabaseClient";
 
+export interface CourseSelection {
+  days: Record<string, string[]>;
+  packageIdx: number;
+  includeBook: boolean;
+}
+
+export interface PurchasedPackage {
+  course_id: string;
+  course_name: string;
+  hours: number;
+  price: number;
+}
+
 export interface Application {
   id: string;
   first_name: string | null;
@@ -9,13 +22,13 @@ export interface Application {
   dob: string | null;
   parent_email: string | null;
   parent_phone: number | null;
-  courses: Record<string, any>;
+  courses: Record<string, CourseSelection>;
   course_limits: Record<string, number>;
   status: string;
   created_at: string;
   payment_receipt_urls: string[] | null;
   submitted_by: string | null;
-  purchased_packages: any;
+  purchased_packages: PurchasedPackage[] | null;
   total_price: number | null;
 }
 
@@ -24,14 +37,14 @@ export interface ApplicationChange {
   student_id: string;
   type: "renewal" | "edit" | "cancel";
   status: string;
-  changes: Record<string, any>;
+  changes: Record<string, unknown>;
   created_at: string;
   receipt_urls: string[] | null;
   submitted_by: string | null;
   nickname: string | null;
   first_name: string | null;
   last_name: string | null;
-  purchased_packages: any;
+  purchased_packages: PurchasedPackage[] | null;
   total_price: number | null;
 }
 
@@ -121,7 +134,7 @@ export async function submitApplication(data: {
   dob: string;
   parent_phone: string;
   parent_line_id: string;
-  courses: Record<string, any>;
+  courses: Record<string, CourseSelection>;
   course_limits: Record<string, number>;
   payment_receipt_urls: string[];
   submitted_by?: string;
@@ -140,7 +153,7 @@ export async function directEnrollStudent(data: {
   dob: string;
   parent_phone: string;
   parent_line_id: string;
-  courses: Record<string, any>;
+  courses: Record<string, CourseSelection>;
   course_limits: Record<string, number>;
   payment_receipt_urls: string[];
 }) {
@@ -156,7 +169,7 @@ export async function directEnrollStudent(data: {
 export async function submitChangeRequest(data: {
   student_id: string;
   type: "renewal" | "edit" | "cancel";
-  changes: Record<string, any>;
+  changes: Record<string, unknown>;
   receipt_urls?: string[];
 }) {
   const { error } = await supabase
@@ -179,7 +192,7 @@ export async function fetchOrCreatePublicLink() {
     await supabase
       .from("application_links")
       .update({ expires_at: new Date(Date.now() - 60_000) })
-      .neq("expires_at", null as any);
+      .neq("expires_at", null as unknown as string);
     const { data: newLink } = await supabase
       .from("application_links")
       .insert([{ expires_at: new Date(Date.now() + 7 * 24 * 3600 * 1000) }])

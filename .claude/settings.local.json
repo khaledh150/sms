@@ -63,7 +63,27 @@
       "Bash(Select-String -Path \"C:\\\\Users\\\\khale\\\\.claude\\\\projects\\\\c--Apps-and-Games-Dev-sme\\\\1aad0aad-83bd-4b59-97d5-2c6ac2d8d785.jsonl\" -Pattern \"SchoolDetailModal\")",
       "Bash(Select-Object -First 20)",
       "mcp__claude_ai_Supabase__get_logs",
-      "Bash(Get-ChildItem -Path \"c:\\\\Apps and Games Dev\\\\sme\" -Recurse -Filter \"HomePage*\")"
+      "Bash(Get-ChildItem -Path \"c:\\\\Apps and Games Dev\\\\sme\" -Recurse -Filter \"HomePage*\")",
+      "Bash(Get-ChildItem -Path \"c:\\\\Apps and Games Dev\\\\sme\" -Force)",
+      "Bash(Select-Object Name, Mode)",
+      "Bash(xargs wc -l)",
+      "Bash(xargs grep -l \"payment\\\\|promptpay\\\\|qr.*code\\\\|line.*pay\\\\|2.*tap\")",
+      "Bash(xargs grep -l \"payment\\\\|promptpay\\\\|qr\\\\|line.*pay\\\\|renewal.*notification\")",
+      "Bash(xargs grep -l \"useStudentAttendance\\\\|useAttendance\")",
+      "Bash(Get-ChildItem -Path \"C:\\\\Apps and Games Dev\\\\sme\" -Recurse -Directory -Filter \"supabase\")",
+      "Bash(Get-ChildItem -Path \"C:\\\\Apps and Games Dev\\\\sme\" -Recurse -Filter \"*.tsx\" -o Name)",
+      "Bash(Test-Path \"C:\\\\Apps and Games Dev\\\\sme\\\\src\\\\hooks\\\\useAttendance.ts\")",
+      "Bash(xargs grep -l \": any\")",
+      "Bash(awk -F'|' '{print $2}')",
+      "Bash(awk '$1 > 1 {print $0}')",
+      "Bash(rm \"c:\\\\Apps and Games Dev\\\\sme\\\\src\\\\StudentProfilePage.tsx\" \"c:\\\\Apps and Games Dev\\\\sme\\\\src\\\\MessagingPage.tsx\" \"c:\\\\Apps and Games Dev\\\\sme\\\\src\\\\AttendancePage.tsx\")",
+      "PowerShell(New-Item -ItemType Directory -Force \"c:\\\\Apps and Games Dev\\\\sme\\\\src\\\\types\")",
+      "PowerShell(New-Item -ItemType Directory -Force \"c:\\\\Apps and Games Dev\\\\sme\\\\src\\\\utils\")",
+      "Bash(Get-ChildItem -Path \"c:\\\\Apps and Games Dev\\\\sme\\\\src\" -Recurse -Filter \"*.tsx\")",
+      "Bash(Select-Object -ExpandProperty FullName)"
+    ],
+    "additionalDirectories": [
+      "c:\\Apps and Games Dev\\sme\\src"
     ]
   }
 }

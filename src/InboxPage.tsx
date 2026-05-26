@@ -12,6 +12,7 @@ import { useCourses } from "./hooks/useCourses";
 import {
   approveApplications, approveChanges, rejectApplications, rejectChanges,
 } from "./services/applications";
+import type { ApplicationChange } from "./services/applications";
 import { POS } from "./theme";
 import { useTranslation } from "react-i18next";
 import { parseCourseLimit } from "./utils";
@@ -95,9 +96,9 @@ export default function InboxPage() {
 
   const totalPending = pendingApps.length + pendingChanges.length;
 
-  function getChangeDetails(ch: any) {
+  function getChangeDetails(ch: ApplicationChange) {
     const details: { course: string; days: string; hours: number }[] = [];
-    const changes = ch.changes || {};
+    const changes = (ch.changes || {}) as Record<string, any>;
     if (ch.type === "edit" && changes.course_changes) {
       Object.entries(changes.course_changes).forEach(([cid, days]: any) => {
         const dayStr = Object.entries(days).map(([d, times]: any) =>
@@ -113,18 +114,18 @@ export default function InboxPage() {
     return details;
   }
 
-  function getReceipts(ch: any): string[] {
+  function getReceipts(ch: Record<string, any>): string[] {
     return ch.changes?.receipts || ch.receipt_urls || ch.payment_receipt_urls || [];
   }
 
-  function getStudentName(ch: any): string {
+  function getStudentName(ch: Record<string, any>): string {
     if (ch.nickname || ch.first_name) return `${ch.nickname || ""} ${ch.first_name || ""} ${ch.last_name || ""}`.trim();
     const s = studentNameMap[ch.student_id];
     if (s) return `${s.nick_name ? `"${s.nick_name}" ` : ""}${s.first_name} ${s.last_name}`;
     return "Unknown Student";
   }
 
-  const typeConfig: Record<string, { icon: any; label: string; bg: string; color: string }> = {
+  const typeConfig: Record<string, { icon: React.ElementType; label: string; bg: string; color: string }> = {
     edit: { icon: PencilSquareIcon, label: t("addCourseType"), bg: POS.infoLight, color: POS.info },
     renewal: { icon: ArrowPathIcon, label: t("renewalType"), bg: POS.warningLight, color: POS.warning },
     cancel: { icon: XMarkIcon, label: t("cancellationType"), bg: POS.dangerLight, color: POS.danger },

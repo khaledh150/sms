@@ -26,43 +26,8 @@ import { useTranslation } from "react-i18next";
 import { useToast } from "../../hooks/useToast";
 import SchoolDetailModal from "./SchoolDetailModal";
 
-interface SchoolHealth {
-  school_id: string;
-  name: string;
-  status: string;
-  plan: string;
-  owner_id: string | null;
-  created_at: string;
-  max_students: number;
-  max_staff: number;
-  feature_flags: Record<string, boolean>;
-  setup_checklist: Record<string, boolean>;
-  active_students: number;
-  total_students: number;
-  staff_count: number;
-  admin_count: number;
-  course_count: number;
-  checkins_30d: number;
-  line_messages_30d: number;
-  owner_last_login: string | null;
-  owner_name: string | null;
-  owner_email: string | null;
-  contact_email: string | null;
-  contact_phone: string | null;
-  address: string | null;
-  notes: string | null;
-}
-
-interface AuditEntry {
-  id: string;
-  action: string;
-  target_type: string | null;
-  target_id: string | null;
-  metadata: Record<string, any>;
-  created_at: string;
-  actor_name?: string;
-  school_name?: string;
-}
+import type { SchoolHealth, SuperAdminAuditEntry as AuditEntry } from "./types";
+import { timeAgo as sharedTimeAgo } from "../../utils/time";
 
 interface SchoolForm {
   name: string;
@@ -267,14 +232,7 @@ export default function SuperAdminDashboard() {
 
   const timeAgo = (dateStr: string | null) => {
     if (!dateStr) return t("saNeverLoggedIn");
-    const diff = Date.now() - new Date(dateStr).getTime();
-    const mins = Math.floor(diff / 60000);
-    if (mins < 60) return `${mins}m ago`;
-    const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `${hrs}h ago`;
-    const days = Math.floor(hrs / 24);
-    if (days < 30) return `${days}d ago`;
-    return `${Math.floor(days / 30)}mo ago`;
+    return sharedTimeAgo(dateStr);
   };
 
   return (
@@ -528,7 +486,7 @@ export default function SuperAdminDashboard() {
                         color: !school.owner_last_login ? POS.danger : POS.success,
                       }}>
                       <ClockIcon className="w-3 h-3 inline -mt-0.5 mr-0.5" />
-                      {timeAgo(school.owner_last_login)}
+                      {timeAgo(school.owner_last_login ?? "")}
                     </span>
                   </div>
                 </motion.div>

@@ -24,9 +24,15 @@ export const POS = {
   info: "#2196F3",
   infoLight: "#E3F2FD",
 
+  // Semantic (extended)
+  warningDark: "#B45309",
+  warningAccent: "#D97706",
+  successDark: "#15803D",
+
   // Text
   textPrimary: "#2D2D3F",
   textSecondary: "#6B7280",
+  textTertiary: "#7C8DB0",
   textMuted: "#9CA3AF",
   textOnPrimary: "#FFFFFF",
 

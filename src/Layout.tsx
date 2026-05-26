@@ -26,6 +26,9 @@ import OfflineBanner from "./OfflineBanner";
 import { INACTIVITY_TIMEOUT_MS, INACTIVITY_THROTTLE_MS } from "./constants";
 import { validateImageFile } from "./hooks/useFileValidation";
 import { useToast } from "./hooks/useToast";
+import type { Notification } from "./types";
+import { timeAgo } from "./utils/time";
+import { fetchNotifications, markNotificationRead, markAllNotificationsRead } from "./services/notifications";
 
 function HeaderClock() {
   const [time, setTime] = useState(new Date());
@@ -46,16 +49,6 @@ function HeaderClock() {
       </span>
     </div>
   );
-}
-
-interface Notification {
-  id: string;
-  type: string | null;
-  payload: Record<string, any> | null;
-  student_id: string | null;
-  student_name?: string;
-  read: boolean;
-  created_at: string;
 }
 
 const TABS = [
@@ -134,15 +127,9 @@ export default function Layout() {
   // Notifications via Supabase Realtime
   useEffect(() => {
     const refresh = async () => {
-      const { data, count } = await supabase
-        .from("notifications").select("id,type,payload,student_id,read,created_at,students(nick_name,first_name)", { count: "exact" }).eq("read", false).order("created_at", { ascending: false }).limit(20);
-      const mapped = (data ?? []).map((n: any) => ({
-        ...n,
-        student_name: n.students?.nick_name || n.students?.first_name || "",
-        students: undefined,
-      }));
-      setUnreadCount(count || 0);
-      setNotifications(mapped as Notification[]);
+      const { notifications: items, count } = await fetchNotifications();
+      setUnreadCount(count);
+      setNotifications(items);
     };
     refresh();
     const channel = supabase
@@ -165,13 +152,13 @@ export default function Layout() {
   }, [showNotifications]);
 
   async function markRead(id: string) {
-    await supabase.from("notifications").update({ read: true }).eq("id", id);
+    await markNotificationRead(id);
     setNotifications(prev => prev.filter(n => n.id !== id));
     setUnreadCount(c => Math.max(0, c - 1));
   }
 
   async function markAllRead() {
-    await supabase.from("notifications").update({ read: true }).eq("read", false);
+    await markAllNotificationsRead();
     setNotifications([]);
     setUnreadCount(0);
     toast(t("markedAllRead"), "success");
@@ -285,7 +272,7 @@ export default function Layout() {
             {/* Bell with notifications dropdown */}
             <div ref={bellRef} className="relative">
               <button onClick={() => setShowNotifications(!showNotifications)}
-                className="relative p-2 rounded-[1rem] transition hover:bg-white hover:shadow-sm btn-gummy-sm" aria-label="Notifications">
+                className="relative p-2 rounded-[1rem] transition hover:bg-white hover:shadow-sm btn-gummy-sm min-w-[48px] min-h-[48px] flex items-center justify-center" aria-label="Notifications">
                 <BellSolid className="w-6 h-6" style={{ color: POS.primary }} />
                 {unreadCount > 0 && (
                   <span className="absolute -top-1 -right-1 text-white text-[10px] font-bold rounded-full h-5 w-5 flex items-center justify-center" style={{ background: POS.danger }}>
@@ -315,15 +302,7 @@ export default function Layout() {
                   ) : (
                     <div className="p-2 space-y-2">
                       {notifications.map(n => {
-                        const ago = (() => {
-                          const diff = Date.now() - new Date(n.created_at).getTime();
-                          const mins = Math.floor(diff / 60000);
-                          if (mins < 1) return "now";
-                          if (mins < 60) return `${mins}m`;
-                          const hrs = Math.floor(mins / 60);
-                          if (hrs < 24) return `${hrs}h`;
-                          return `${Math.floor(hrs / 24)}d`;
-                        })();
+                        const ago = timeAgo(n.created_at);
                         const typeColor = n.type === "overlimit" ? POS.danger : n.type === "renewal_approaching" ? "#D97706" : n.type === "renewal_request" ? POS.warning : n.type === "checkin" ? POS.success : POS.primary;
                         const typeLabel = n.type === "new_application" ? t("newStudentBadge") : n.type === "renewal_request" ? t("renew") : n.type === "overlimit" ? t("needsRenewal") : n.type === "renewal_approaching" ? t("renewalApproaching") : n.type === "checkin" ? t("checkIn") : n.type || "";
                         const handleClick = () => {
@@ -350,13 +329,13 @@ export default function Layout() {
               )}
             </div>
 
-            <button onClick={toggleFullscreen} className="p-2 rounded-[1rem] text-[#7C8DB0] hover:bg-white hover:shadow-sm transition-all btn-gummy-sm" aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}>
+            <button onClick={toggleFullscreen} className="p-2 rounded-[1rem] hover:bg-white hover:shadow-sm transition-all btn-gummy-sm min-w-[48px] min-h-[48px] flex items-center justify-center" style={{ color: POS.textSecondary }} aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}>
               {isFullscreen ? <ArrowsPointingInIcon className="w-5 h-5 sm:w-6 sm:h-6" /> : <ArrowsPointingOutIcon className="w-5 h-5 sm:w-6 sm:h-6" />}
             </button>
 
-            <button onClick={() => setShowProfileModal(true)} className="p-0 rounded-[1.2rem] overflow-hidden" style={{ background: "none", minHeight: "auto" }} aria-label="Profile">
+            <button onClick={() => setShowProfileModal(true)} className="p-0 rounded-[1.2rem] overflow-hidden min-w-[48px] min-h-[48px] flex items-center justify-center" style={{ background: "none" }} aria-label="Profile">
               <img src={profileUrl || `${import.meta.env.BASE_URL}avatar.png`} alt="Profile"
-                className="w-9 h-9 sm:w-10 sm:h-10 rounded-[1.2rem] border-2 shadow-sm object-cover transition-transform hover:scale-105"
+                className="w-11 h-11 sm:w-12 sm:h-12 rounded-[1.2rem] border-2 shadow-sm object-cover transition-transform hover:scale-105"
                 style={{ borderColor: "#fff" }}
                 onError={() => setProfileUrl(`${import.meta.env.BASE_URL}avatar.png`)} />
             </button>
@@ -377,7 +356,7 @@ export default function Layout() {
             <button key={tab.key} onClick={() => nav(tab.path)}
               className="flex flex-col items-center justify-center flex-1 py-1 mx-1 transition-all relative rounded-[1.2rem]"
               style={{
-                color: isActive ? "#fff" : "#7C8DB0",
+                color: isActive ? "#fff" : POS.textTertiary,
                 background: isActive ? POS.primaryGradient : "transparent",
                 fontWeight: isActive ? 800 : 500,
                 boxShadow: isActive ? "0 4px 12px rgba(108, 92, 231, 0.2)" : "none"

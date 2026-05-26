@@ -33,19 +33,18 @@ export default function AttendancePage() {
 
   useEffect(() => {
     const fetchRows = () =>
-      supabase.from("attendance").select("id,student_id,course_id,attended_at_ts,approved_by")
+      supabase.from("attendance").select("id,student_id,course_id,attended_at_ts,approved_by,cancelled_by")
         .gte("attended_at_ts", todayStr())
+        .is("cancelled_by", null)
         .then(({ data }) => setRows((data ?? []) as AttendanceRow[]));
 
     const fetchAllTimeHours = () =>
-      supabase.from("attendance").select("student_id,course_id")
-        .not("approved_by", "is", null)
+      supabase.from("student_course_attendance_summary").select("student_id,course_id,total_hours")
         .then(({ data }) => {
           const m = new Map<string, number>();
           (data ?? []).forEach((r: any) => {
             if (!r.course_id) return;
-            const k = `${r.student_id}|${r.course_id}`;
-            m.set(k, (m.get(k) || 0) + 1);
+            m.set(`${r.student_id}|${r.course_id}`, r.total_hours);
           });
           setAllTimeHours(m);
         });
@@ -151,7 +150,7 @@ export default function AttendancePage() {
           const todayRows = rows.filter(r => r.student_id === stu.student_id && r.course_id === cid && r.attended_at_ts.slice(0, 10) === todayStr());
           if (todayRows.length) {
             const ids = todayRows.map(r => r.id);
-            await supabase.from("attendance").delete().in("id", ids);
+            await supabase.from("attendance").update({ cancelled_by: user!.id, cancelled_at: new Date().toISOString() }).in("id", ids);
             setRows(rs => rs.filter(r => !ids.includes(r.id)));
           }
           playBeep(); haptic("error");

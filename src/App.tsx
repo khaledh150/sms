@@ -34,6 +34,7 @@ const BillingPage = lazy(() => import("./BillingPage"));
 const ReportsPage = lazy(() => import("./ReportsPage"));
 const MessagingPage = lazy(() => import("./features/messaging"));
 const SuperAdminDashboard = lazy(() => import("./features/super-admin"));
+const RenewCoursePage = lazy(() => import("./RenewCoursePage"));
 import SuperAdminRoute from "./features/super-admin/SuperAdminRoute";
 
 
@@ -54,6 +55,7 @@ export default function App() {
         <Routes>
           {/* Public */}
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/renew/:studentId/:courseId" element={<RenewCoursePage />} />
 
           {/* Protected (POS shell with bottom nav) */}
           <Route

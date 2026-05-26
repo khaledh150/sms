@@ -14,7 +14,7 @@ const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Satur
 const HOURS: string[] = [];
 for (let h = 6; h < 23; ++h) HOURS.push(`${String(h).padStart(2, "0")}:00-${String(h + 1).padStart(2, "0")}:00`);
 
-type HourPackage = { hours: number; price: number };
+import type { HourPackage } from "./types";
 type Course = { id?: string; name: string; weekdays: string[]; times: Record<string, string[]>; capacity: number; hour_packages: HourPackage[]; book_price: number };
 
 function useFetchCourses() {

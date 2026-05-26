@@ -81,11 +81,15 @@ export default function StudentProfilePage() {
   function getPendingForCourse(courseId: string) {
     return pendingChanges.find(c => {
       const limits = c.changes?.course_limits;
-      return limits && courseId in limits;
+      return limits && typeof limits === "object" && courseId in (limits as object);
     });
   }
 
   function getAttendanceForCourse(courseId: string) {
+    return attendance.filter(a => a.course_id === courseId && a.approved_by && !a.cancelled_by);
+  }
+
+  function getAllAttendanceForCourse(courseId: string) {
     return attendance.filter(a => a.course_id === courseId && a.approved_by);
   }
 
@@ -215,8 +219,10 @@ export default function StudentProfilePage() {
                 enrollment={enr}
                 course={courseMap[enr.course_id]}
                 attendanceRecords={getAttendanceForCourse(enr.course_id)}
+                allAttendanceRecords={getAllAttendanceForCourse(enr.course_id)}
                 pendingReq={getPendingForCourse(enr.course_id)}
                 studentId={student.id}
+                userRole={user?.role}
                 onRenew={(courseId, mode) => { setRenewCourse(courseId); setRenewMode(mode); }}
                 onLateCheckIn={(courseId) => setLateCheckInCourse(courseId)}
                 onCancel={(enrollmentId, courseId) => setCancelTarget({ enrollmentId, courseId })}

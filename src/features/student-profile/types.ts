@@ -35,6 +35,8 @@ export interface AttendanceRecord {
   course_id: string | null;
   attended_at_ts: string;
   approved_by: string | null;
+  cancelled_by: string | null;
+  cancelled_at: string | null;
 }
 
 export interface PendingChange {

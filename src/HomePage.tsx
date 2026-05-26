@@ -272,20 +272,20 @@ export default function HomePage() {
             {approachingStudents.length > 0 && (
               <>
                 <div className="flex items-center gap-2 mb-3">
-                  <ExclamationTriangleIcon className="w-5 h-5" style={{ color: "#D97706" }} />
-                  <h2 className="text-base font-bouncy" style={{ color: "#D97706" }}>{t("renewalApproaching")}</h2>
+                  <ExclamationTriangleIcon className="w-5 h-5" style={{ color: POS.warningAccent }} />
+                  <h2 className="text-base font-bouncy" style={{ color: POS.warningAccent }}>{t("renewalApproaching")}</h2>
                 </div>
                 <div className="space-y-2">
                   {approachingStudents.slice(0, 5).map(s => (
                     <motion.div key={s.enrollment_id} whileTap={{ scale: 0.98 }} onClick={() => nav(`/students/${s.student_id}`)}
                       className="flex items-center gap-3 p-3 cursor-pointer btn-gummy-sm"
-                      style={{ background: POS.warningLight, borderRadius: POS.radius2xl, border: `1px solid #F59E0B33` }}>
-                      <div className="w-9 h-9 rounded-lg flex items-center justify-center text-white text-lg font-bouncy" style={{ background: "#F59E0B" }}>⏳</div>
+                      style={{ background: POS.warningLight, borderRadius: POS.radius2xl, border: `1px solid ${POS.warning}33` }}>
+                      <div className="w-9 h-9 rounded-lg flex items-center justify-center text-white text-lg font-bouncy" style={{ background: POS.warning }}>⏳</div>
                       <div className="flex-1 min-w-0">
                         <span className="font-bouncy text-base leading-tight block truncate" style={{ color: POS.textPrimary }}>
                           {s.nick_name || s.first_name}{s.nick_name && s.first_name ? ` '${s.first_name}'` : ""}
                         </span>
-                        <span className="font-bold text-xs" style={{ color: "#D97706" }}>{s.course_name} — {s.hours_remaining} {t("hrsLeft")}</span>
+                        <span className="font-bold text-xs" style={{ color: POS.warningAccent }}>{s.course_name} — {s.hours_remaining} {t("hrsLeft")}</span>
                       </div>
                     </motion.div>
                   ))}
@@ -305,8 +305,8 @@ export default function HomePage() {
                 {reviewCount}
               </div>
               <div>
-                <span className="font-bouncy text-xl" style={{ color: "#D97706" }}>{t("pendingApprovalsExclaim")}</span>
-                <p className="text-sm font-bold" style={{ color: "#B45309" }}>{t("tapToReviewThem")}</p>
+                <span className="font-bouncy text-xl" style={{ color: POS.warningAccent }}>{t("pendingApprovalsExclaim")}</span>
+                <p className="text-sm font-bold" style={{ color: POS.warningDark }}>{t("tapToReviewThem")}</p>
               </div>
             </div>
             <div className="w-10 h-10 rounded-full bg-orange-400 flex items-center justify-center text-white font-bold">→</div>

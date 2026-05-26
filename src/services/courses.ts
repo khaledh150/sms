@@ -1,5 +1,6 @@
 // src/services/courses.ts — Course CRUD + schedule queries
 import { supabase } from "../supabaseClient";
+import type { HourPackage } from "../types";
 
 export interface Course {
   id: string;
@@ -9,7 +10,7 @@ export interface Course {
   capacity: number | null;
   start: string | null;
   end: string | null;
-  hour_packages: any;
+  hour_packages: HourPackage[];
   created_at: string;
 }
 

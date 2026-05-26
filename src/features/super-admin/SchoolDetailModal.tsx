@@ -14,32 +14,8 @@ import { useTranslation } from "react-i18next";
 import { useToast } from "../../hooks/useToast";
 import { useNavigate } from "react-router-dom";
 
-interface SchoolHealth {
-  school_id: string;
-  name: string;
-  status: string;
-  plan: string;
-  owner_id: string | null;
-  created_at: string;
-  max_students: number;
-  max_staff: number;
-  feature_flags: Record<string, boolean>;
-  setup_checklist: Record<string, boolean>;
-  active_students: number;
-  total_students: number;
-  staff_count: number;
-  admin_count: number;
-  course_count: number;
-  checkins_30d: number;
-  line_messages_30d: number;
-  owner_last_login?: string | null;
-  contact_email: string | null;
-  contact_phone: string | null;
-  address: string | null;
-  notes: string | null;
-  owner_name: string | null;
-  owner_email: string | null;
-}
+import type { SchoolHealth } from "./types";
+import { timeAgo as sharedTimeAgo } from "../../utils/time";
 
 interface Props {
   school: SchoolHealth;
@@ -328,12 +304,7 @@ export default function SchoolDetailModal({ school, onClose, onStatusChange }: P
 
   const timeAgo = (d: string | null | undefined) => {
     if (!d) return t("saNeverLoggedIn");
-    const diff = Date.now() - new Date(d).getTime();
-    const mins = Math.floor(diff / 60000);
-    if (mins < 60) return `${mins}m`;
-    const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `${hrs}h`;
-    return `${Math.floor(hrs / 24)}d`;
+    return sharedTimeAgo(d);
   };
 
   const statusColor = (s: string) => s === "active" ? POS.success : s === "suspended" ? POS.warning : POS.textMuted;

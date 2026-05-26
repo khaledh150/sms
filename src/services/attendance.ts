@@ -7,6 +7,8 @@ export interface AttendanceRow {
   course_id: string | null;
   attended_at_ts: string;
   approved_by: string | null;
+  cancelled_by: string | null;
+  cancelled_at: string | null;
 }
 
 // Today's date string (YYYY-MM-DD)
@@ -14,12 +16,13 @@ export function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
 
-// Fetch today's attendance records
+// Fetch today's attendance records (excluding cancelled)
 export async function fetchTodayAttendance() {
   const { data, error } = await supabase
     .from("attendance")
     .select("*")
-    .gte("attended_at_ts", todayStr());
+    .gte("attended_at_ts", todayStr())
+    .is("cancelled_by", null);
   if (error) throw error;
   return (data ?? []) as AttendanceRow[];
 }
@@ -95,23 +98,24 @@ export async function approvePending(
   if (error) throw error;
 }
 
-// Delete an attendance record (undo)
-export async function deleteAttendance(rowId: string) {
+// Soft-delete an attendance record (cancel)
+export async function cancelAttendance(rowId: string, userId: string) {
   const { error } = await supabase
     .from("attendance")
-    .delete()
+    .update({ cancelled_by: userId, cancelled_at: new Date().toISOString() })
     .eq("id", rowId);
   if (error) throw error;
 }
 
-// Get used hours count for a student+course
+// Get used hours count for a student+course (excluding cancelled)
 export async function getUsedHours(studentId: string, courseId: string) {
   const { count, error } = await supabase
     .from("attendance")
     .select("*", { head: true, count: "exact" })
     .eq("student_id", studentId)
     .eq("course_id", courseId)
-    .not("approved_by", "is", null);
+    .not("approved_by", "is", null)
+    .is("cancelled_by", null);
   if (error) throw error;
   return count ?? 0;
 }

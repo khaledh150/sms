@@ -103,23 +103,22 @@ export default function LineConnectionCard({ student, lineConnection, unlinkedLi
                   if (!selectedUnlinkedId) return;
                   setLinkingLine(true);
                   const u = unlinkedLineUsers.find(x => x.line_user_id === selectedUnlinkedId);
-                  await supabase.from("line_connections").upsert({
-                    student_id: student.id, line_user_id: selectedUnlinkedId,
-                    display_name: u?.display_name || null,
-                    picture_url: u?.picture_url || null,
-                  }, { onConflict: "student_id" });
-                  await supabase.from("students").update({ parent_line_id: selectedUnlinkedId }).eq("id", student.id);
-                  await supabase.from("unlinked_line_users").delete().eq("line_user_id", selectedUnlinkedId);
+                  const name = student.nick_name || student.first_name || "";
+                  let welcomeMessage: string | null = null;
                   if (lineConfig?.auto_link_notify !== false) {
-                    const name = student.nick_name || student.first_name || "";
                     const tpl = lineConfig?.message_templates?.link_welcome
                       || `Your LINE account has been linked to {{name}}!\n\nบัญชี LINE ของคุณเชื่อมต่อกับ {{name}} เรียบร้อยแล้ว!`;
-                    await supabase.from("pending_line_notifications").insert({
-                      student_id: student.id, message_type: "general",
-                      message: tpl.replace(/\{\{name\}\}/g, name),
-                      status: "queued",
-                    });
+                    welcomeMessage = tpl.replace(/\{\{name\}\}/g, name);
                   }
+                  const { error } = await supabase.rpc("link_line_account", {
+                    p_student_id: student.id,
+                    p_line_user_id: selectedUnlinkedId,
+                    p_display_name: u?.display_name || null,
+                    p_picture_url: u?.picture_url || null,
+                    p_send_welcome: !!welcomeMessage,
+                    p_welcome_message: welcomeMessage,
+                  });
+                  if (error) { toast(error.message, "error"); setLinkingLine(false); return; }
                   toast(t("lineLinkedSuccess"), "success");
                   setSelectedUnlinkedId("");
                   invalidateAll();

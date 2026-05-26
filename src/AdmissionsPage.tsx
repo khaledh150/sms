@@ -10,7 +10,7 @@ import { useToast } from "./hooks/useToast";
 import { validateReceiptFile } from "./hooks/useFileValidation";
 import { ArrowLeftIcon, ArrowRightIcon, CheckCircleIcon } from "@heroicons/react/24/solid";
 
-interface HourPackage { hours: number; price: number }
+import type { HourPackage } from "./types";
 interface CourseRow { id: string; name: string; weekdays: string[]; times: Record<string, string[]>; capacity: number; hour_packages: HourPackage[]; book_price: number }
 
 interface CourseSelection {

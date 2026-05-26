@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { POS } from "../../theme";
 import { formatTime } from "./utils";
 import { useTranslation } from "react-i18next";
@@ -11,7 +12,7 @@ interface Props {
   onClick: () => void;
 }
 
-export default function ChatListItem({ student, lastMessage, connection, onClick }: Props) {
+export default memo(function ChatListItem({ student, lastMessage, connection, onClick }: Props) {
   const { t } = useTranslation();
   const displayName = student.nick_name ? `${student.nick_name} (${student.first_name})` : `${student.first_name} ${student.last_name}`;
 
@@ -46,4 +47,4 @@ export default function ChatListItem({ student, lastMessage, connection, onClick
       </div>
     </button>
   );
-}
+});

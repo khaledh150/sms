@@ -5,6 +5,7 @@ export interface MessageTemplates {
   enrollment: string;
   approval: string;
   link_welcome: string;
+  renewal_payment: string;
 }
 
 export interface LineConfig {
@@ -16,6 +17,7 @@ export interface LineConfig {
   auto_renewal_notify: boolean;
   auto_link_notify: boolean;
   message_templates: MessageTemplates;
+  payment_qr_url: string | null;
 }
 
 export interface LineMessage {

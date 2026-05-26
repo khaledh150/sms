@@ -9,48 +9,17 @@ import {
   PlusIcon,
 } from "@heroicons/react/24/solid";
 import { TrashIcon } from "@heroicons/react/24/outline";
-import { supabase } from "./supabaseClient";
 import { useAuth } from "./AuthContext";
 import { POS } from "./theme";
 import { useTranslation } from "react-i18next";
 import { useToast } from "./hooks/useToast";
-
-interface Payment {
-  id: string;
-  student_id: string;
-  amount: number;
-  currency: string;
-  method: string | null;
-  received_at: string;
-  course_id: string | null;
-  note: string | null;
-  receipt_url: string | null;
-}
-
-interface Expense {
-  id: string;
-  date: string;
-  category: string;
-  amount: number;
-  description: string | null;
-}
-
-interface MonthlySummary {
-  id: string;
-  month: number;
-  year: number;
-  income: number;
-  expenses: number;
-  profit: number;
-}
+import type { Expense } from "./types";
+import { fetchPayments, fetchExpenses, fetchMonthlySummary, addPayment, addExpense, deleteExpense } from "./services/billing";
 
 function usePayments() {
   return useQuery({
     queryKey: ["payments"],
-    queryFn: async () => {
-      const { data } = await supabase.from("payments").select("*").order("received_at", { ascending: false }).limit(50);
-      return (data ?? []) as Payment[];
-    },
+    queryFn: fetchPayments,
     staleTime: 60_000,
   });
 }
@@ -58,10 +27,7 @@ function usePayments() {
 function useExpenses() {
   return useQuery({
     queryKey: ["expenses"],
-    queryFn: async () => {
-      const { data } = await supabase.from("expenses").select("*").order("date", { ascending: false }).limit(50);
-      return (data ?? []) as Expense[];
-    },
+    queryFn: fetchExpenses,
     staleTime: 60_000,
   });
 }
@@ -69,10 +35,7 @@ function useExpenses() {
 function useMonthlySummary() {
   return useQuery({
     queryKey: ["monthly_summary"],
-    queryFn: async () => {
-      const { data } = await supabase.from("monthly_summary").select("*").order("year", { ascending: false }).order("month", { ascending: false }).limit(12);
-      return (data ?? []) as MonthlySummary[];
-    },
+    queryFn: fetchMonthlySummary,
     staleTime: 120_000,
   });
 }
@@ -93,7 +56,7 @@ export default function BillingPage() {
   const [expDesc, setExpDesc] = useState("");
 
   // Expense deletion state
-  const [deleteExpense, setDeleteExpense] = useState<Expense | null>(null);
+  const [deleteExpenseItem, setDeleteExpense] = useState<Expense | null>(null);
   const [deletingExpense, setDeletingExpense] = useState(false);
 
   // Payment recording state
@@ -128,55 +91,37 @@ export default function BillingPage() {
 
   async function handleAddExpense() {
     if (!expAmount || !user?.id) return;
-    const { error } = await supabase.from("expenses").insert([{
-      category: expCategory,
-      amount: Number(expAmount),
-      description: expDesc || null,
-      created_by: user.id,
-    }]);
-    if (error) {
-      toast(error.message, "error");
-      return;
-    }
-    toast(t("expenseAdded"), "success");
-    setAddExpenseOpen(false);
-    setExpAmount("");
-    setExpDesc("");
-    queryClient.invalidateQueries({ queryKey: ["expenses"] });
+    try {
+      await addExpense({ category: expCategory, amount: Number(expAmount), description: expDesc || null, createdBy: user.id });
+      toast(t("expenseAdded"), "success");
+      setAddExpenseOpen(false);
+      setExpAmount("");
+      setExpDesc("");
+      queryClient.invalidateQueries({ queryKey: ["expenses"] });
+    } catch (e: any) { toast(e.message, "error"); }
   }
 
   async function handleDeleteExpense() {
-    if (!deleteExpense) return;
+    if (!deleteExpenseItem) return;
     setDeletingExpense(true);
-    const { error } = await supabase.from("expenses").delete().eq("id", deleteExpense.id);
-    if (error) toast(error.message, "error");
-    else { toast(t("expenseDeleted"), "success"); queryClient.invalidateQueries({ queryKey: ["expenses"] }); }
+    try {
+      await deleteExpense(deleteExpenseItem.id);
+      toast(t("expenseDeleted"), "success");
+      queryClient.invalidateQueries({ queryKey: ["expenses"] });
+    } catch (e: any) { toast(e.message, "error"); }
     setDeleteExpense(null);
     setDeletingExpense(false);
   }
 
   async function handleAddPayment() {
     if (!payAmount || !user?.id) return;
-    let receiptUrl = null;
-    if (payFile) {
-      const fn = `${Date.now()}-${payFile.name}`;
-      const { data: u, error: ue } = await supabase.storage.from("receipts").upload(fn, payFile);
-      if (ue) { toast(t("uploadFailed", { message: ue.message }), "error"); return; }
-      const { data: pu } = supabase.storage.from("receipts").getPublicUrl(u.path);
-      receiptUrl = pu.publicUrl;
-    }
-    const { error } = await supabase.from("payments").insert([{
-      amount: Number(payAmount),
-      currency: payCurrency,
-      method: payMethod,
-      note: payNote || null,
-      receipt_url: receiptUrl,
-    }]);
-    if (error) { toast(error.message, "error"); return; }
-    toast(t("paymentRecorded"), "success");
-    setAddPaymentOpen(false);
-    setPayAmount(""); setPayNote(""); setPayFile(null);
-    queryClient.invalidateQueries({ queryKey: ["payments"] });
+    try {
+      await addPayment({ amount: Number(payAmount), currency: payCurrency, method: payMethod, note: payNote || null, file: payFile });
+      toast(t("paymentRecorded"), "success");
+      setAddPaymentOpen(false);
+      setPayAmount(""); setPayNote(""); setPayFile(null);
+      queryClient.invalidateQueries({ queryKey: ["payments"] });
+    } catch (e: any) { toast(e.message, "error"); }
   }
 
   return (
@@ -422,7 +367,7 @@ export default function BillingPage() {
       )}
 
       {/* Delete Expense Confirmation Dialog */}
-      <Dialog open={!!deleteExpense} onClose={() => setDeleteExpense(null)} className="relative z-50">
+      <Dialog open={!!deleteExpenseItem} onClose={() => setDeleteExpense(null)} className="relative z-50">
         <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
         <div className="fixed inset-0 flex items-center justify-center p-4">
           <Dialog.Panel className="bg-white rounded-2xl p-6 max-w-sm w-full space-y-4"
@@ -433,9 +378,9 @@ export default function BillingPage() {
             <p className="text-sm" style={{ color: POS.textSecondary }}>
               {t("confirmDeleteExpense")}
             </p>
-            {deleteExpense && (
+            {deleteExpenseItem && (
               <div className="text-sm font-semibold" style={{ color: POS.danger }}>
-                {Number(deleteExpense.amount).toLocaleString()} THB — {deleteExpense.category}
+                {Number(deleteExpenseItem.amount).toLocaleString()} THB — {deleteExpenseItem.category}
               </div>
             )}
             <div className="flex gap-2">

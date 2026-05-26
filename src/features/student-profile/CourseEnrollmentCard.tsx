@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, memo } from "react";
 import {
   PlusIcon, ArrowPathIcon, XMarkIcon, ClockIcon,
   CheckCircleIcon, ExclamationCircleIcon, ChevronDownIcon, ChevronRightIcon,
@@ -6,6 +6,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { supabase } from "../../supabaseClient";
+import { useAuth } from "../../AuthContext";
 import { useToast } from "../../hooks/useToast";
 import { POS } from "../../theme";
 import type { EnrollmentData, CourseData, AttendanceRecord, PendingChange } from "./types";
@@ -14,21 +15,26 @@ interface Props {
   enrollment: EnrollmentData;
   course: CourseData | undefined;
   attendanceRecords: AttendanceRecord[];
+  allAttendanceRecords?: AttendanceRecord[];
   pendingReq: PendingChange | undefined;
   studentId: string;
+  userRole?: string;
   onRenew: (courseId: string, mode: "renew" | "add") => void;
   onLateCheckIn: (courseId: string) => void;
   onCancel: (enrollmentId: string, courseId: string) => void;
 }
 
-export default function CourseEnrollmentCard({
-  enrollment, course, attendanceRecords, pendingReq, studentId,
-  onRenew, onLateCheckIn, onCancel,
+export default memo(function CourseEnrollmentCard({
+  enrollment, course, attendanceRecords, allAttendanceRecords, pendingReq, studentId,
+  userRole, onRenew, onLateCheckIn, onCancel,
 }: Props) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const { toast } = useToast();
   const [expanded, setExpanded] = useState(false);
+  const isOwner = userRole === "owner" || userRole === "superadmin";
+  const displayRecords = allAttendanceRecords || attendanceRecords;
 
   const used = attendanceRecords.length + (enrollment.initial_used_hours || 0);
   const purchased = enrollment.purchased_hours;
@@ -135,17 +141,41 @@ export default function CourseEnrollmentCard({
             <div className="text-xs font-bold mb-1" style={{ color: POS.textSecondary }}>
               {t("attendanceHistory")} ({attendanceRecords.length})
             </div>
-            {attendanceRecords.length === 0 ? (
+            {displayRecords.length === 0 ? (
               <p className="text-xs" style={{ color: POS.textMuted }}>{t("noRecords")}</p>
             ) : (
-              <div className="max-h-40 overflow-y-auto space-y-1">
-                {attendanceRecords.slice(0, 20).map(a => (
-                  <div key={a.id} className="text-xs py-1 px-2 rounded-lg bg-white">
-                    {new Date(a.attended_at_ts).toLocaleString("en-GB", {
-                      weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit"
-                    })}
-                  </div>
-                ))}
+              <div className="max-h-48 overflow-y-auto space-y-1">
+                {displayRecords.map(a => {
+                  const isCancelled = !!a.cancelled_by;
+                  return (
+                    <div key={a.id} className="text-xs py-1.5 px-2 rounded-lg bg-white flex items-center gap-2">
+                      <span style={{ textDecoration: isCancelled ? "line-through" : "none", color: isCancelled ? POS.textMuted : POS.textPrimary, flex: 1 }}>
+                        {new Date(a.attended_at_ts).toLocaleString("en-GB", {
+                          weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit"
+                        })}
+                        {isCancelled && <span style={{ color: POS.danger, marginLeft: 6 }}>{t("cancelled")}</span>}
+                      </span>
+                      {!isCancelled && isOwner && (
+                        <button
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            if (!confirm(t("confirmCancelAttendance"))) return;
+                            const { error } = await supabase.from("attendance").update({
+                              cancelled_by: user!.id, cancelled_at: new Date().toISOString(),
+                            }).eq("id", a.id);
+                            if (error) { toast(error.message, "error"); return; }
+                            toast(t("attendanceCancelled"), "success");
+                            queryClient.invalidateQueries({ queryKey: ["studentAttendance", studentId] });
+                          }}
+                          className="p-0.5 rounded hover:bg-red-50"
+                          title={t("cancelAttendance")}
+                        >
+                          <XMarkIcon className="w-3.5 h-3.5" style={{ color: POS.danger }} />
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -153,4 +183,4 @@ export default function CourseEnrollmentCard({
       )}
     </div>
   );
-}
+});

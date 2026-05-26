@@ -38,27 +38,25 @@ export default function UnlinkedAccountsSection({ unlinkedUsers, students, conne
     setLinkingId(lineUserId);
     try {
       const unlinked = unlinkedUsers.find(u => u.line_user_id === lineUserId);
-      const { error: connErr } = await supabase.from("line_connections").upsert({
-        student_id: studentId,
-        line_user_id: lineUserId,
-        display_name: unlinked?.display_name || null,
-        picture_url: unlinked?.picture_url || null,
-      }, { onConflict: "student_id" });
-      if (connErr) { toast(connErr.message, "error"); return; }
+      const student = students.find(s => s.id === studentId);
+      const name = student?.nick_name || student?.first_name || "";
 
-      await supabase.from("students").update({ parent_line_id: lineUserId }).eq("id", studentId);
-      await supabase.from("unlinked_line_users").delete().eq("line_user_id", lineUserId);
-
+      let welcomeMessage: string | null = null;
       if (config?.auto_link_notify) {
-        const student = students.find(s => s.id === studentId);
-        const name = student?.nick_name || student?.first_name || "";
         const tpl = config.message_templates?.link_welcome
           || `Your LINE account has been linked to {{name}}! You will now receive notifications.\n\nบัญชี LINE ของคุณเชื่อมต่อกับ {{name}} เรียบร้อยแล้ว!`;
-        const message = tpl.replace(/\{\{name\}\}/g, name);
-        await supabase.from("pending_line_notifications").insert({
-          student_id: studentId, message_type: "general", message, status: "queued",
-        });
+        welcomeMessage = tpl.replace(/\{\{name\}\}/g, name);
       }
+
+      const { error } = await supabase.rpc("link_line_account", {
+        p_student_id: studentId,
+        p_line_user_id: lineUserId,
+        p_display_name: unlinked?.display_name || null,
+        p_picture_url: unlinked?.picture_url || null,
+        p_send_welcome: !!welcomeMessage,
+        p_welcome_message: welcomeMessage,
+      });
+      if (error) { toast(error.message, "error"); return; }
 
       toast(t("accountLinked"), "success");
       queryClient.invalidateQueries({ queryKey: ["unlinked_line_users"] });

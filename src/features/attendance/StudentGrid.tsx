@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, memo } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
@@ -18,7 +18,7 @@ interface Props {
   collapsed?: boolean;
 }
 
-export default function StudentGrid({ students, courseId, isHere, todayUsed, busyKey, onCheckIn, allTimeHours, collapsed }: Props) {
+export default memo(function StudentGrid({ students, courseId, isHere, todayUsed, busyKey, onCheckIn, allTimeHours, collapsed }: Props) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [expanded, setExpanded] = useState(false);
@@ -121,4 +121,4 @@ export default function StudentGrid({ students, courseId, isHere, todayUsed, bus
     )}
     </>
   );
-}
+});

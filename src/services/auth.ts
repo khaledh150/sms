@@ -1,13 +1,8 @@
 // src/services/auth.ts — Auth, profile, role checking
 import { supabase } from "../supabaseClient";
 
-export interface Profile {
-  id: string;
-  email: string | null;
-  full_name: string | null;
-  role: "admin" | "staff";
-  avatar_url: string | null;
-}
+export type { Profile } from "../types";
+import type { Profile } from "../types";
 
 // Get current auth user
 export async function getCurrentUser() {
