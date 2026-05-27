@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { POS } from "./theme";
 import { useToast } from "./hooks/useToast";
 import { validateReceiptFile } from "./hooks/useFileValidation";
-import { ArrowLeftIcon, ArrowRightIcon, CheckCircleIcon } from "@heroicons/react/24/solid";
+import { ArrowLeftIcon, ArrowRightIcon, CheckCircleIcon, CameraIcon } from "@heroicons/react/24/solid";
 
 import type { HourPackage } from "./types";
 interface CourseRow { id: string; name: string; weekdays: string[]; times: Record<string, string[]>; capacity: number; hour_packages: HourPackage[]; book_price: number }
@@ -45,6 +45,9 @@ export default function AdmissionsPage(_props: { publicMode?: boolean }) {
   // courseId -> { days, packageIdx }
   const [selections, setSelections] = useState<Record<string, CourseSelection>>({});
   const [hoursRemaining, setHoursRemaining] = useState<Record<string, number>>({});
+  const [studentPhoto, setStudentPhoto] = useState<File | null>(null);
+  const [studentPhotoPreview, setStudentPhotoPreview] = useState<string | null>(null);
+  const photoRef = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<File[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
@@ -159,6 +162,13 @@ export default function AdmissionsPage(_props: { publicMode?: boolean }) {
       }]).select().single();
       if (insErr) { setError(insErr.message); setSaving(false); return; }
       if (newStudent) {
+        if (studentPhoto) {
+          const ext = studentPhoto.name.split(".").pop() || "jpg";
+          const photoPath = `${newStudent.id}.${ext}`;
+          await supabase.storage.from("student-photos").upload(photoPath, studentPhoto, { upsert: true });
+          const { data: { publicUrl } } = supabase.storage.from("student-photos").getPublicUrl(photoPath);
+          await supabase.from("students").update({ photo_url: `${publicUrl}?t=${Date.now()}` }).eq("id", newStudent.id);
+        }
         const enrollRows = selectedCourseIds.map(cid => {
           const sel = selections[cid];
           const c = courses.find(x => x.id === cid);
@@ -273,11 +283,31 @@ export default function AdmissionsPage(_props: { publicMode?: boolean }) {
               <label className="text-xs font-semibold" style={{ color: POS.textSecondary }}>{t("dob")}</label>
               <input type="date" className="w-full border rounded-xl px-4 py-3 mt-1" style={{ borderColor: POS.border }} value={dob} onChange={e => setDob(e.target.value)} />
             </div>
+            <div>
+              <label className="text-xs font-semibold" style={{ color: POS.textSecondary }}>{t("studentPhoto")}</label>
+              <input type="file" ref={photoRef} accept="image/*" className="hidden"
+                onChange={e => {
+                  const f = e.target.files?.[0];
+                  if (f) { setStudentPhoto(f); setStudentPhotoPreview(URL.createObjectURL(f)); }
+                }} />
+              <button type="button" onClick={() => photoRef.current?.click()}
+                className="mt-1 w-full flex items-center gap-3 border rounded-xl px-4 py-3"
+                style={{ borderColor: POS.border, borderStyle: "dashed", minHeight: POS.touchComfortable }}>
+                {studentPhotoPreview ? (
+                  <img src={studentPhotoPreview} alt="" className="w-10 h-10 rounded-full object-cover" />
+                ) : (
+                  <CameraIcon className="w-6 h-6" style={{ color: POS.textMuted }} />
+                )}
+                <span className="text-sm" style={{ color: studentPhotoPreview ? POS.textPrimary : POS.textMuted }}>
+                  {studentPhotoPreview ? t("changePhoto") : t("addPhoto")}
+                </span>
+              </button>
+            </div>
             <h3 className="text-base font-bold pt-2" style={{ color: POS.primary }}>{t("guardian")}</h3>
             <div>
               <label className="text-xs font-semibold" style={{ color: POS.textSecondary }}>{t("phone")} *</label>
-              <input type="tel" inputMode="numeric" className="w-full border rounded-xl px-4 py-3 mt-1 text-base" style={{ borderColor: POS.border, minHeight: POS.touchComfortable }}
-                value={phone} onChange={e => setPhone(e.target.value)} placeholder="08X-XXX-XXXX" />
+              <input type="tel" inputMode="numeric" pattern="[0-9]*" className="w-full border rounded-xl px-4 py-3 mt-1 text-base" style={{ borderColor: POS.border, minHeight: POS.touchComfortable }}
+                value={phone} onChange={e => setPhone(e.target.value.replace(/[^0-9]/g, ""))} placeholder="08XXXXXXXX" />
             </div>
           </motion.div>
         )}

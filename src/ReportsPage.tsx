@@ -50,24 +50,25 @@ function useCourseUtilization() {
   });
 }
 
-function useRecentAttendance() {
+function useAttendanceRecords(dateFrom: string, dateTo: string, courseFilter: string) {
   return useQuery({
-    queryKey: ["recent_attendance_list"],
+    queryKey: ["attendance_records", dateFrom, dateTo, courseFilter],
     queryFn: async () => {
-      const d = new Date();
-      d.setUTCDate(d.getUTCDate() - 30);
-      const thirtyDaysAgo = d.toISOString().slice(0, 10);
-      const { data, error } = await supabase
+      let query = supabase
         .from("attendance")
         .select("student_id, course_id, attended_at_ts")
         .not("approved_by", "is", null)
-        .gte("attended_at_ts", thirtyDaysAgo)
+        .is("cancelled_by", null)
         .order("attended_at_ts", { ascending: false })
-        .limit(30);
+        .limit(200);
+      if (dateFrom) query = query.gte("attended_at_ts", dateFrom);
+      if (dateTo) query = query.lte("attended_at_ts", dateTo + "T23:59:59");
+      if (courseFilter) query = query.eq("course_id", courseFilter);
+      const { data, error } = await query;
       if (error) throw error;
       return data ?? [];
     },
-    staleTime: 120_000,
+    staleTime: 30_000,
   });
 }
 
@@ -110,11 +111,14 @@ export default function ReportsPage() {
   const { data: courses = [] } = useCourses();
   const { data: attendanceStats } = useAttendanceStats30d();
   const { data: courseUtil = [] } = useCourseUtilization();
-  const { data: recentAttendance = [] } = useRecentAttendance();
   const { data: attendanceByDay = [] } = useAttendanceByDay();
 
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+
+  const [recordDate, setRecordDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [recordCourse, setRecordCourse] = useState("");
+  const { data: attendanceRecords = [] } = useAttendanceRecords(recordDate, recordDate, recordCourse);
 
   const totalCheckIns = attendanceStats?.total_checkins ?? 0;
   const activeStudentCount = attendanceStats?.unique_students ?? 0;
@@ -124,24 +128,37 @@ export default function ReportsPage() {
   // Pie chart data from course utilization
   const pieData = courseUtil.map(c => ({ name: c.course_name, value: c.enrolled || 0 }));
 
-  // Filter recent attendance by date range
-  const filteredAttendance = useMemo(() => {
-    if (!dateFrom && !dateTo) return recentAttendance;
-    return recentAttendance.filter(a => {
-      const d = a.attended_at_ts.slice(0, 10);
-      if (dateFrom && d < dateFrom) return false;
-      if (dateTo && d > dateTo) return false;
-      return true;
+  const studentMap = useMemo(() => {
+    const m: Record<string, { first_name: string; last_name: string; nick_name: string | null }> = {};
+    students.forEach(s => { m[s.id] = s; });
+    return m;
+  }, [students]);
+
+  const groupedRecords = useMemo(() => {
+    const map = new Map<string, { courseName: string; entries: { name: string; studentId: string; time: string }[] }>();
+    attendanceRecords.forEach(a => {
+      const cName = courseMap[a.course_id]?.name || "Unknown";
+      if (!map.has(a.course_id)) map.set(a.course_id, { courseName: cName, entries: [] });
+      const stu = studentMap[a.student_id];
+      const name = stu ? (stu.nick_name ? `${stu.nick_name} '${stu.first_name}'` : `${stu.first_name} ${stu.last_name}`) : a.student_id.slice(0, 8);
+      const time = new Date(a.attended_at_ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      map.get(a.course_id)!.entries.push({ name, studentId: a.student_id, time });
     });
-  }, [recentAttendance, dateFrom, dateTo]);
+    return Array.from(map.values());
+  }, [attendanceRecords, courseMap, studentMap]);
 
   function exportCSV() {
-    const headers = ["Date", "Course", "Student ID"];
-    const rows = filteredAttendance.map(a => [
-      new Date(a.attended_at_ts).toLocaleDateString(),
-      courseMap[a.course_id]?.name || a.course_id,
-      a.student_id,
-    ]);
+    const headers = ["Date", "Course", "Student", "Time"];
+    const rows = attendanceRecords.map(a => {
+      const stu = studentMap[a.student_id];
+      const name = stu ? (stu.nick_name || stu.first_name) : a.student_id;
+      return [
+        new Date(a.attended_at_ts).toLocaleDateString(),
+        courseMap[a.course_id]?.name || a.course_id,
+        name,
+        new Date(a.attended_at_ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      ];
+    });
     const csv = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -156,7 +173,7 @@ export default function ReportsPage() {
 
   return (
     <div className="min-h-screen p-4 sm:p-6 max-w-4xl mx-auto">
-      <h1 className="text-2xl font-extrabold mb-6" style={{ color: POS.textPrimary }}>
+      <h1 className="text-2xl font-bouncy mb-6" style={{ color: POS.textPrimary }}>
         <ChartBarIcon className="w-7 h-7 inline mr-2" style={{ color: POS.info }} />
         {t("reports")}
       </h1>
@@ -355,30 +372,77 @@ export default function ReportsPage() {
         </div>
       </section>
 
-      {/* 6. Recent Attendance (filtered by date) */}
+      {/* 6. Attendance Record — full daily report */}
       <section>
-        <h2 className="text-lg font-bold mb-3" style={{ color: POS.textPrimary }}>
-          {t("recentAttendance")}
+        <h2 className="text-lg font-bouncy mb-3" style={{ color: POS.textPrimary }}>
+          {t("attendanceRecord")}
         </h2>
-        {filteredAttendance.length === 0 ? (
-          <p className="text-center py-8" style={{ color: POS.textMuted }}>
-            {hasDateFilter ? t("noDataForRange") : t("noAttendanceData")}
-          </p>
+        <div className="bg-white rounded-2xl p-4 mb-3 border" style={{ borderColor: POS.borderLight, boxShadow: POS.shadowSm }}>
+          <div className="flex gap-2 items-center flex-wrap">
+            <input type="date" value={recordDate} onChange={e => setRecordDate(e.target.value)}
+              className="rounded-xl border px-3 py-2 text-sm flex-1 min-w-[140px]" style={{ borderColor: POS.border }} />
+            <select value={recordCourse} onChange={e => setRecordCourse(e.target.value)}
+              className="rounded-xl border px-3 py-2 text-sm flex-1 min-w-[140px]" style={{ borderColor: POS.border }}>
+              <option value="">{t("allCourses")}</option>
+              {courses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+            <div className="flex gap-1">
+              <button onClick={() => {
+                const d = new Date(recordDate);
+                d.setDate(d.getDate() - 1);
+                setRecordDate(d.toISOString().slice(0, 10));
+              }} className="px-3 py-2 rounded-xl text-sm font-bold" style={{ background: POS.bgSurface, color: POS.textSecondary }}>←</button>
+              <button onClick={() => setRecordDate(new Date().toISOString().slice(0, 10))}
+                className="px-3 py-2 rounded-xl text-sm font-bold" style={{ background: POS.bgSurface, color: POS.primary }}>
+                {t("today")}
+              </button>
+              <button onClick={() => {
+                const d = new Date(recordDate);
+                d.setDate(d.getDate() + 1);
+                setRecordDate(d.toISOString().slice(0, 10));
+              }} className="px-3 py-2 rounded-xl text-sm font-bold" style={{ background: POS.bgSurface, color: POS.textSecondary }}>→</button>
+            </div>
+          </div>
+          <div className="mt-2 text-xs font-bold" style={{ color: POS.textMuted }}>
+            {new Date(recordDate).toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+            {" — "}{attendanceRecords.length} {t("checkIn").toLowerCase()}(s)
+          </div>
+        </div>
+
+        {groupedRecords.length === 0 ? (
+          <div className="text-center py-8 bg-white rounded-2xl border" style={{ borderColor: POS.borderLight }}>
+            <ClipboardDocumentCheckIcon className="w-10 h-10 mx-auto mb-2" style={{ color: "#d0d0d0" }} />
+            <p className="text-sm font-bold" style={{ color: POS.textMuted }}>{t("noAttendanceData")}</p>
+          </div>
         ) : (
-          <div className="bg-white rounded-2xl border overflow-hidden" style={{ borderColor: POS.borderLight }}>
-            <div className="max-h-80 overflow-y-auto">
-              {filteredAttendance.slice(0, 30).map((a, i) => (
-                <div key={i} className="flex items-center justify-between px-4 py-2 border-b last:border-0"
-                  style={{ borderColor: POS.borderLight }}>
-                  <div className="text-sm" style={{ color: POS.textPrimary }}>
-                    {courseMap[a.course_id]?.name || "—"}
+          <div className="space-y-3">
+            {groupedRecords.map((group, i) => {
+              const colors = [POS.primary, POS.success, POS.info, POS.warning, "#E91E63"];
+              const color = colors[i % colors.length];
+              return (
+                <div key={i} className="bg-white rounded-2xl p-4 border" style={{ borderColor: POS.borderLight }}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold" style={{ background: color }}>
+                      {group.courseName.charAt(0)}
+                    </div>
+                    <span className="font-bouncy text-base" style={{ color: POS.textPrimary }}>{group.courseName}</span>
+                    <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: `${color}15`, color }}>
+                      {group.entries.length}
+                    </span>
                   </div>
-                  <div className="text-xs" style={{ color: POS.textMuted }}>
-                    {new Date(a.attended_at_ts).toLocaleDateString("en-GB", { weekday: "short", month: "short", day: "numeric" })}
+                  <div className="space-y-0.5">
+                    {group.entries.map((entry, j) => (
+                      <div key={j} className="flex items-center gap-2 py-1.5 px-2 rounded-lg text-sm"
+                        style={{ background: POS.bgSurface }}>
+                        <span className="text-xs font-bold w-5 text-center" style={{ color: POS.textMuted }}>{j + 1}</span>
+                        <span className="font-bold flex-1" style={{ color: POS.textPrimary }}>{entry.name}</span>
+                        <span className="text-xs font-semibold" style={{ color: POS.textMuted }}>{entry.time}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              ))}
-            </div>
+              );
+            })}
           </div>
         )}
       </section>

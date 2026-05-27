@@ -65,6 +65,11 @@
   "selectCourse": "Select Course",
   "selectDay": "Select Day",
   "selectTime": "Select Time",
+  "allDays": "All Days",
+  "allTimes": "All Times",
+  "studentPhoto": "Student Photo",
+  "addPhoto": "Add Photo (Optional)",
+  "changePhoto": "Change Photo",
   "loading": "Loading…",
   "noStudentsFound": "No students found.",
   "nickname": "Nick name",
@@ -664,5 +669,9 @@
   "saTeamTotal": "Team",
   "saLineMsgs": "LINE",
   "saImpersonating": "Viewing as another school",
-  "saReturnToAdmin": "Return to Super Admin"
+  "saReturnToAdmin": "Return to Super Admin",
+  "attendanceRecord": "Attendance Record",
+  "allCourses": "All Courses",
+  "today": "Today",
+  "all": "All"
 }

@@ -7,6 +7,7 @@ export interface StudentData {
   parent_phone: string | null;
   parent_line_id: string | null;
   qr_code_url: string | null;
+  photo_url: string | null;
   joined_at: string | null;
   status: string | null;
 }
@@ -57,6 +58,7 @@ export interface PendingChange {
 export interface LineConnectionData {
   line_user_id: string;
   display_name: string | null;
+  picture_url: string | null;
 }
 
 export interface UnlinkedLineUser {

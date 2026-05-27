@@ -67,9 +67,13 @@ export default function BillingPage() {
   const [payNote, setPayNote] = useState("");
   const [payFile, setPayFile] = useState<File | null>(null);
 
-  // Date range filter state
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
+  // Date range filter state — default last 30 days
+  const [dateFrom, setDateFrom] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 30);
+    return d.toISOString().slice(0, 10);
+  });
+  const [dateTo, setDateTo] = useState(() => new Date().toISOString().slice(0, 10));
 
   // Filtered data
   const filteredPayments = useMemo(() => {
@@ -86,7 +90,13 @@ export default function BillingPage() {
     return result;
   }, [expenses, dateFrom, dateTo]);
 
-  const totalIncome = useMemo(() => filteredPayments.reduce((s, p) => s + Number(p.amount), 0), [filteredPayments]);
+  const totalIncome = useMemo(() => {
+    const paymentIncome = filteredPayments.reduce((s, p) => s + Number(p.amount), 0);
+    if (paymentIncome > 0) return paymentIncome;
+    const now = new Date();
+    const currentMonth = summaries.find(s => s.month === now.getMonth() + 1 && s.year === now.getFullYear());
+    return currentMonth ? Number(currentMonth.income) : 0;
+  }, [filteredPayments, summaries]);
   const totalExpenses = useMemo(() => filteredExpenses.reduce((s, e) => s + Number(e.amount), 0), [filteredExpenses]);
 
   async function handleAddExpense() {
@@ -126,7 +136,7 @@ export default function BillingPage() {
 
   return (
     <div className="min-h-screen p-4 sm:p-6 max-w-4xl mx-auto">
-      <h1 className="text-2xl font-extrabold mb-4" style={{ color: POS.textPrimary }}>
+      <h1 className="text-2xl font-bouncy mb-4" style={{ color: POS.textPrimary }}>
         <CurrencyDollarIcon className="w-7 h-7 inline mr-2" style={{ color: POS.warning }} />
         {t("billing")}
       </h1>
@@ -156,21 +166,37 @@ export default function BillingPage() {
         </div>
       </div>
 
-      {/* Date Range Filters */}
-      <div className="flex items-center gap-2 mb-4 bg-white rounded-xl p-3 border" style={{ borderColor: POS.borderLight }}>
-        <label className="text-xs font-semibold" style={{ color: POS.textSecondary }}>{t("dateFrom")}</label>
-        <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-          className="rounded-lg border px-2 py-1.5 text-sm flex-1" style={{ borderColor: POS.border }} />
-        <label className="text-xs font-semibold" style={{ color: POS.textSecondary }}>{t("dateTo")}</label>
-        <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-          className="rounded-lg border px-2 py-1.5 text-sm flex-1" style={{ borderColor: POS.border }} />
-        {(dateFrom || dateTo) && (
-          <button onClick={() => { setDateFrom(""); setDateTo(""); }}
-            className="text-xs font-bold px-3 py-1.5 rounded-lg"
-            style={{ background: POS.bgSurface, color: POS.primary }}>
-            {t("clearFilter")}
-          </button>
-        )}
+      {/* Date Range — Quick Presets + Custom */}
+      <div className="bg-white rounded-2xl p-4 mb-4 border space-y-3" style={{ borderColor: POS.borderLight }}>
+        <div className="flex gap-2 flex-wrap">
+          {[
+            { label: "7d", days: 7 },
+            { label: "30d", days: 30 },
+            { label: "90d", days: 90 },
+            { label: t("all"), days: 0 },
+          ].map(preset => {
+            const presetFrom = preset.days > 0 ? new Date(Date.now() - preset.days * 86400000).toISOString().slice(0, 10) : "";
+            const presetTo = preset.days > 0 ? new Date().toISOString().slice(0, 10) : "";
+            const isActive = dateFrom === presetFrom && dateTo === presetTo;
+            return (
+              <button key={preset.label} onClick={() => { setDateFrom(presetFrom); setDateTo(presetTo); }}
+                className="px-4 py-2 rounded-xl text-sm font-bold transition-all"
+                style={{
+                  background: isActive ? POS.primary : POS.bgSurface,
+                  color: isActive ? "#fff" : POS.textSecondary,
+                }}>
+                {preset.label}
+              </button>
+            );
+          })}
+        </div>
+        <div className="flex items-center gap-2">
+          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+            className="rounded-xl border px-3 py-2 text-sm flex-1" style={{ borderColor: POS.border }} />
+          <span className="text-sm font-bold" style={{ color: POS.textMuted }}>—</span>
+          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+            className="rounded-xl border px-3 py-2 text-sm flex-1" style={{ borderColor: POS.border }} />
+        </div>
       </div>
 
       {/* Tabs */}

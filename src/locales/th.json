@@ -65,6 +65,11 @@
   "selectCourse": "เลือกหลักสูตร",
   "selectDay": "เลือกวัน",
   "selectTime": "เลือกเวลา",
+  "allDays": "ทุกวัน",
+  "allTimes": "ทุกเวลา",
+  "studentPhoto": "รูปนักเรียน",
+  "addPhoto": "เพิ่มรูป (ไม่บังคับ)",
+  "changePhoto": "เปลี่ยนรูป",
   "loading": "กำลังโหลด…",
   "noStudentsFound": "ไม่พบนักเรียน",
   "nickname": "ชื่อเล่น",
@@ -663,5 +668,9 @@
   "saTeamTotal": "ทีม",
   "saLineMsgs": "LINE",
   "saImpersonating": "กำลังดูในฐานะโรงเรียนอื่น",
-  "saReturnToAdmin": "กลับไปซูเปอร์แอดมิน"
+  "saReturnToAdmin": "กลับไปซูเปอร์แอดมิน",
+  "attendanceRecord": "บันทึกการเข้าเรียน",
+  "allCourses": "ทุกคอร์ส",
+  "today": "วันนี้",
+  "all": "ทั้งหมด"
 }

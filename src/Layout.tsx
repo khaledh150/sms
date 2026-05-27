@@ -37,10 +37,10 @@ function HeaderClock() {
   }, []);
   return (
     <div className="flex flex-col items-center mx-auto">
-      <span className="text-[10px] font-extrabold uppercase tracking-wide text-[#7C8DB0] sm:hidden">
+      <span className="text-xs font-extrabold uppercase tracking-wide text-[#7C8DB0] sm:hidden">
         {time.toLocaleDateString([], { weekday: 'short' })}
       </span>
-      <span className="text-[10px] font-extrabold uppercase tracking-wide text-[#7C8DB0] sm:hidden">
+      <span className="text-xs font-extrabold uppercase tracking-wide text-[#7C8DB0] sm:hidden">
         {time.toLocaleDateString([], { month: 'short', day: 'numeric' })}
       </span>
       <span className="text-xs font-extrabold uppercase tracking-widest text-[#7C8DB0] hidden sm:block md:hidden">
@@ -195,8 +195,10 @@ export default function Layout() {
     return () => vv.removeEventListener("resize", onResize);
   }, []);
 
+  const MORE_PATHS = ["/settings", "/billing", "/reports", "/messaging", "/courses", "/admissions"];
   const visibleTabs = TABS.filter(t => t.key !== "inbox" || isAdmin);
-  const activeTab = visibleTabs.find(t => loc.pathname.startsWith(t.path))?.key || "home";
+  const activeTab = visibleTabs.find(t => loc.pathname.startsWith(t.path))?.key
+    || (MORE_PATHS.some(p => loc.pathname.startsWith(p)) ? "more" : "home");
 
   return (
     <div className="min-h-[100dvh] flex flex-col relative overflow-x-hidden" style={{ background: "transparent" }}>
@@ -234,7 +236,7 @@ export default function Layout() {
           {/* Left: Logo */}
           <div className="flex items-center gap-2 cursor-pointer" onClick={() => nav("/dashboard")}>
             <img src="/logo.webp" alt="Wonder Kids" className="w-10 h-10 rounded-[1rem] object-contain btn-gummy-sm shadow-sm" />
-            <span className="text-2xl sm:text-3xl font-bouncy tracking-tight select-none hidden sm:block" style={{ color: POS.primaryDark }}>
+            <span className="text-2xl sm:text-3xl font-bouncy tracking-tight select-none hidden sm:block -mt-1" style={{ color: POS.primaryDark }}>
               Wonder Kids
             </span>
           </div>

@@ -87,7 +87,9 @@
       "Bash(Get-ChildItem -Path \"c:\\\\Apps and Games Dev\\\\sme\" -Recurse -File -Filter \"*.tsx\" -o Name)",
       "Bash(Get-ChildItem -Path \"c:\\\\Apps and Games Dev\\\\sme\" -File -Name)",
       "Bash(Select-String -Pattern \"tailwind|\\\\.css|index\\\\.\")",
-      "PowerShell(Get-ChildItem -Path \"c:\\\\Apps and Games Dev\\\\sme\" -File | Where-Object { $_.Name -match \"tailwind|\\\\.css|index\\\\.\" } | Select-Object -First 20)"
+      "PowerShell(Get-ChildItem -Path \"c:\\\\Apps and Games Dev\\\\sme\" -File | Where-Object { $_.Name -match \"tailwind|\\\\.css|index\\\\.\" } | Select-Object -First 20)",
+      "PowerShell(npm run build 2>&1)",
+      "PowerShell(npm run dev 2>&1)"
     ],
     "additionalDirectories": [
       "c:\\Apps and Games Dev\\sme\\src"

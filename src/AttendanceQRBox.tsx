@@ -24,7 +24,7 @@ export default function AttendanceQRBox({ onScan, onClose }: Props) {
     containerRef.current.id = scannerId;
 
     const html5Qr = new Html5Qrcode(scannerId);
-    scannerRef.current = html5Qr;
+    let started = false;
 
     html5Qr.start(
       { facingMode: "environment" },
@@ -37,7 +37,10 @@ export default function AttendanceQRBox({ onScan, onClose }: Props) {
         onScan(decodedText);
       },
       () => {}
-    ).catch((err: any) => {
+    ).then(() => {
+      started = true;
+      scannerRef.current = html5Qr;
+    }).catch((err: any) => {
       if (closingRef.current) return;
       const msg = err?.message || err?.toString() || "";
       if (msg.includes("NotAllowedError") || msg.includes("Permission denied")) {
@@ -53,7 +56,7 @@ export default function AttendanceQRBox({ onScan, onClose }: Props) {
 
     return () => {
       closingRef.current = true;
-      if (scannerRef.current) {
+      if (started && scannerRef.current) {
         scannerRef.current.stop().catch(() => {});
         scannerRef.current = null;
       }

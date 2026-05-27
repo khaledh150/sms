@@ -133,7 +133,7 @@ export default function InboxPage() {
 
   return (
     <div className="min-h-screen p-4 sm:p-6 max-w-4xl mx-auto">
-      <h1 className="text-2xl font-extrabold mb-5 flex items-center gap-2" style={{ color: POS.textPrimary }}>
+      <h1 className="text-2xl font-bouncy mb-5 flex items-center gap-2" style={{ color: POS.textPrimary }}>
         <ClipboardDocumentCheckIcon className="w-7 h-7" style={{ color: POS.primary }} />
         {t("approvals")}
         {totalPending > 0 && (

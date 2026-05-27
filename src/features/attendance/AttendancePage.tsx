@@ -6,6 +6,7 @@ import { supabase } from "../../supabaseClient";
 import { useTranslation } from "react-i18next";
 import { POS } from "../../theme";
 import { useAllEnrolledStudents } from "../../hooks/useStudents";
+import { useCourses } from "../../hooks/useCourses";
 import type { AttendanceRow } from "../../services/attendance";
 import { todayStr } from "../../services/attendance";
 import { getTodayWeekday } from "../../services/courses";
@@ -19,6 +20,7 @@ export default function AttendancePage() {
   const [search, setSearch] = useState("");
 
   const { data: allEnrolled = [] } = useAllEnrolledStudents();
+  const { data: allCourses = [] } = useCourses();
   const [rows, setRows] = useState<AttendanceRow[]>([]);
 
   useEffect(() => {
@@ -55,6 +57,9 @@ export default function AttendancePage() {
 
   const groupedByCourse = useMemo(() => {
     const map = new Map<string, CourseGroup>();
+    allCourses.forEach(c => {
+      if (c.id) map.set(c.id, { courseName: c.name, courseId: c.id, students: [] });
+    });
     allEnrolled.forEach(s => {
       const key = s.course_id;
       if (!map.has(key)) map.set(key, { courseName: s.course_name, courseId: s.course_id, students: [] });
@@ -73,8 +78,8 @@ export default function AttendancePage() {
         photo_url: s.photo_url ?? null,
       });
     });
-    return Array.from(map.values()).filter(g => g.students.length > 0);
-  }, [allEnrolled, todayWeekday]);
+    return Array.from(map.values());
+  }, [allEnrolled, allCourses, todayWeekday]);
 
   const filtered = useMemo(() => {
     if (!search.trim()) return groupedByCourse;

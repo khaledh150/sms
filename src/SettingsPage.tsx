@@ -282,16 +282,8 @@ export default function SettingsPage() {
   return (
     <div className="min-h-screen p-4 sm:p-6 max-w-4xl mx-auto">
       {/* Header */}
-      <div className="flex justify-between items-center mb-4">
-        <h1 className="text-2xl font-extrabold" style={{ color: POS.textPrimary }}>{t("settingsTitle")}</h1>
-        {activeTab === "team" && isAdmin && (
-          <button onClick={() => setShowInvite(v => !v)}
-            className="flex items-center gap-2 px-4 py-3 rounded-xl text-white font-bold text-sm transition"
-            style={{ background: POS.primary, minHeight: POS.touchComfortable }}>
-            {showInvite ? <><XMarkIcon className="w-5 h-5" />{t("closeInvite")}</>
-              : <><PlusCircleIcon className="w-5 h-5" />{t("inviteUser")}</>}
-          </button>
-        )}
+      <div className="mb-4">
+        <h1 className="text-2xl font-bouncy" style={{ color: POS.textPrimary }}>{t("settingsTitle")}</h1>
       </div>
 
       {/* Tabs */}
@@ -556,6 +548,19 @@ export default function SettingsPage() {
       {/* ===== TEAM MEMBERS TAB ===== */}
       {activeTab === "team" && <>
 
+      {/* Users */}
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg font-bold" style={{ color: POS.textPrimary }}>{t("teamMembers")}</h2>
+        {isAdmin && (
+          <button onClick={() => setShowInvite(v => !v)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl font-bold text-xs transition"
+            style={{ background: showInvite ? POS.bgSurface : POS.successLight, color: showInvite ? POS.textSecondary : POS.success, border: `1px solid ${showInvite ? POS.border : POS.success + "44"}` }}>
+            {showInvite ? <><XMarkIcon className="w-4 h-4" />{t("close")}</>
+              : <><PlusCircleIcon className="w-4 h-4" />{t("addUser")}</>}
+          </button>
+        )}
+      </div>
+
       {/* Invite Form */}
       {showInvite && isAdmin && (
         <div className="bg-white rounded-2xl p-5 mb-6 border" style={{ borderColor: POS.borderPurple, boxShadow: POS.shadowMd }}>
@@ -583,8 +588,6 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* Users */}
-      <h2 className="text-lg font-bold mb-4" style={{ color: POS.textPrimary }}>{t("teamMembers")}</h2>
       {loading ? (
         <div className="space-y-3">{Array(3).fill(0).map((_, i) => <div key={i} className="h-20 rounded-2xl bg-white animate-pulse" />)}</div>
       ) : profiles.length === 0 ? (

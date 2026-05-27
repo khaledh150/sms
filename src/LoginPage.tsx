@@ -43,7 +43,7 @@ export default function LoginPage() {
       <div className="hidden lg:flex flex-col justify-center items-center w-1/2 relative overflow-hidden" style={{ background: POS.primaryGradient }}>
         <div className="z-10 text-center text-white px-10 flex flex-col items-center">
           <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", bounce: 0.5 }}>
-            <img src="/logo.webp" alt="Wonder Kids" className="w-52 h-52 mx-auto mb-6 drop-shadow-2xl object-contain" />
+            <img src="/logo.webp" alt="Wonder Kids" className="w-72 h-72 mx-auto mb-6 drop-shadow-2xl object-contain" />
           </motion.div>
 
           <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="text-6xl font-bouncy mb-4 drop-shadow-lg">
@@ -62,7 +62,7 @@ export default function LoginPage() {
         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.4 }}
           className="w-full max-w-sm px-4 sm:px-6">
           <div className="text-center mb-4 sm:mb-6 lg:hidden">
-            <img src="/logo.webp" alt="Wonder Kids" className="w-20 h-20 sm:w-28 sm:h-28 mx-auto mb-1 sm:mb-2 drop-shadow-xl object-contain" />
+            <img src="/logo.webp" alt="Wonder Kids" className="w-36 h-36 sm:w-44 sm:h-44 mx-auto mb-2 sm:mb-3 drop-shadow-xl object-contain" />
             <h1 className="text-3xl sm:text-4xl font-bouncy" style={{ color: POS.primary }}>Wonder Kids</h1>
             <p className="text-xs sm:text-sm font-bold mt-1" style={{ color: POS.textMuted }}>{t("schoolTagline")}</p>
           </div>

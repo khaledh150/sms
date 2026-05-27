@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import type { ChangeEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "./supabaseClient";
@@ -60,7 +60,7 @@ export default function CoursesPage() {
 
   return (
     <div className="min-h-screen p-4 sm:p-6 max-w-4xl mx-auto">
-      <h1 className="text-2xl font-extrabold mb-4" style={{ color: POS.textPrimary }}>{t("courses")}</h1>
+      <h1 className="text-2xl font-bouncy mb-4" style={{ color: POS.textPrimary }}>{t("courses")}</h1>
 
       {/* Tabs */}
       <div className="flex gap-2 mb-5">
@@ -94,15 +94,55 @@ function CheckTab({ courses, courseId, setCourseId, students, loading }: {
 }) {
   const { t } = useTranslation();
   const nav = useNavigate();
+  const [dayFilter, setDayFilter] = useState("");
+  const [timeFilter, setTimeFilter] = useState("");
+
+  const selectedCourse = courses.find(c => c.id === courseId);
+
+  const availableDays = useMemo(() => {
+    if (!selectedCourse) return [];
+    const days = new Set<string>();
+    selectedCourse.weekdays?.forEach(d => days.add(d));
+    if (selectedCourse.times) Object.keys(selectedCourse.times).forEach(d => days.add(d));
+    return WEEKDAYS.filter(d => days.has(d));
+  }, [selectedCourse]);
+
+  const availableTimes = useMemo(() => {
+    if (!selectedCourse?.times) return [];
+    const times = new Set<string>();
+    if (dayFilter) {
+      selectedCourse.times[dayFilter]?.forEach(t => times.add(t));
+    } else {
+      Object.values(selectedCourse.times).forEach(slots => slots.forEach(t => times.add(t)));
+    }
+    return HOURS.filter(h => times.has(h));
+  }, [selectedCourse, dayFilter]);
 
   return (
     <div>
-      <select value={courseId} onChange={(e: ChangeEvent<HTMLSelectElement>) => setCourseId(e.target.value)}
-        className="w-full rounded-xl border px-4 py-3 mb-4 text-base"
+      <select value={courseId} onChange={(e: ChangeEvent<HTMLSelectElement>) => { setCourseId(e.target.value); setDayFilter(""); setTimeFilter(""); }}
+        className="w-full rounded-xl border px-4 py-3 mb-3 text-base"
         style={{ borderColor: POS.border, minHeight: POS.touchComfortable }}>
         <option value="">{t("selectCourse")}</option>
         {courses.map(c => <option key={c.id} value={c.id!}>{c.name}</option>)}
       </select>
+
+      {courseId && (
+        <div className="flex gap-2 mb-4">
+          <select value={dayFilter} onChange={(e: ChangeEvent<HTMLSelectElement>) => { setDayFilter(e.target.value); setTimeFilter(""); }}
+            className="flex-1 rounded-xl border px-3 py-2.5 text-sm"
+            style={{ borderColor: POS.border }}>
+            <option value="">{t("allDays") || t("selectDay")}</option>
+            {availableDays.map(d => <option key={d} value={d}>{t(d.toLowerCase())}</option>)}
+          </select>
+          <select value={timeFilter} onChange={(e: ChangeEvent<HTMLSelectElement>) => setTimeFilter(e.target.value)}
+            className="flex-1 rounded-xl border px-3 py-2.5 text-sm"
+            style={{ borderColor: POS.border }}>
+            <option value="">{t("allTimes") || t("selectTime")}</option>
+            {availableTimes.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+        </div>
+      )}
 
       {!courseId ? (
         <p className="text-center py-8" style={{ color: POS.textMuted }}>{t("selectCoursePrompt")}</p>

@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
+import { Dialog } from "@headlessui/react";
 import { useParams, useNavigate } from "react-router-dom";
-import { PlusIcon, PencilSquareIcon, TrashIcon, CameraIcon } from "@heroicons/react/24/outline";
+import { PlusIcon, PencilSquareIcon, TrashIcon, CameraIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { supabase } from "../../supabaseClient";
@@ -52,7 +53,7 @@ export default function StudentProfilePage() {
     queryKey: ["line_connection", id],
     queryFn: async () => {
       const { data } = await supabase.from("line_connections").select("*").eq("student_id", id!).limit(1).maybeSingle();
-      return data as { line_user_id: string; display_name: string | null } | null;
+      return data as { line_user_id: string; display_name: string | null; picture_url: string | null } | null;
     },
     enabled: !!id,
     staleTime: 60_000,
@@ -76,6 +77,7 @@ export default function StudentProfilePage() {
   const [lateCheckInCourse, setLateCheckInCourse] = useState<string | null>(null);
   const [cancelTarget, setCancelTarget] = useState<{ enrollmentId: string; courseId: string } | null>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [qrPanelOpen, setQrPanelOpen] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
   const isAdmin = user?.role === "owner" || user?.role === "admin" || user?.role === "superadmin";
@@ -139,7 +141,7 @@ export default function StudentProfilePage() {
 
   return (
     <div className="min-h-screen p-4 sm:p-6 max-w-4xl mx-auto space-y-6">
-      {/* Student Info Card */}
+      {/* Student Info + QR + LINE — unified card */}
       <div className="bg-white rounded-2xl p-5 border" style={{ borderColor: POS.borderPurple, boxShadow: POS.shadowMd }}>
         <div className="flex items-start gap-4">
           <input type="file" ref={photoInputRef} accept="image/*" className="hidden" onChange={handlePhotoUpload} />
@@ -193,18 +195,48 @@ export default function StudentProfilePage() {
             )}
           </div>
         </div>
+
+        {/* QR + LINE — inside same card */}
+        <div className="flex items-center gap-3 mt-4 pt-4 border-t" style={{ borderColor: POS.borderLight }}>
+          {student.qr_code_url && (
+            <button onClick={() => setQrPanelOpen(true)}
+              className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 border-2 border-transparent hover:border-purple-300 transition"
+              style={{ minHeight: "auto" }}>
+              <img src={student.qr_code_url} alt="QR" className="w-full h-full object-cover" />
+            </button>
+          )}
+          <div className="flex-1 min-w-0">
+            <LineConnectionCard
+              student={student}
+              lineConnection={lineConnection}
+              unlinkedLineUsers={unlinkedLineUsers}
+              lineConfig={lineConfig}
+              isAdmin={isAdmin}
+            />
+          </div>
+        </div>
       </div>
 
-      {/* QR Code + LINE Connection — side by side */}
-      <div className="grid grid-cols-2 gap-3">
-        {student.qr_code_url && (
-          <div className="bg-white rounded-2xl p-4 border flex flex-col items-center justify-between" style={{ borderColor: POS.borderLight, boxShadow: POS.shadowSm }}>
-            <img src={student.qr_code_url} alt="QR Code" className="w-24 h-24 rounded-lg mb-2" />
-            <div className="font-bold text-xs mb-2" style={{ color: POS.textPrimary }}>{t("studentQrCode")}</div>
-            <div className="flex gap-2">
-              <a href={student.qr_code_url} download className="w-9 h-9 rounded-lg flex items-center justify-center"
-                style={{ background: POS.bgSurface, color: POS.primary }} aria-label={t("download")}>
+      {/* QR Code Popup Panel */}
+      <Dialog open={qrPanelOpen} onClose={() => setQrPanelOpen(false)} className="relative z-50">
+        <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
+        <div className="fixed inset-0 flex items-center justify-center p-4">
+          <Dialog.Panel className="bg-white rounded-2xl p-6 max-w-xs w-full shadow-xl text-center">
+            <div className="flex justify-end mb-2">
+              <button onClick={() => setQrPanelOpen(false)} style={{ minHeight: "auto" }}>
+                <XMarkIcon className="w-5 h-5" style={{ color: POS.textMuted }} />
+              </button>
+            </div>
+            {student.qr_code_url && (
+              <img src={student.qr_code_url} alt="QR Code" className="w-48 h-48 mx-auto rounded-xl mb-4" />
+            )}
+            <p className="text-sm font-bold mb-4" style={{ color: POS.textPrimary }}>{t("studentQrCode")}</p>
+            <div className="flex gap-3 justify-center">
+              <a href={student.qr_code_url!} download
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold"
+                style={{ background: POS.bgSurface, color: POS.primary }}>
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M10.75 2.75a.75.75 0 00-1.5 0v8.614L6.295 8.235a.75.75 0 10-1.09 1.03l4.25 4.5a.75.75 0 001.09 0l4.25-4.5a.75.75 0 00-1.09-1.03l-2.955 3.129V2.75z" /><path d="M3.5 12.75a.75.75 0 00-1.5 0v2.5A2.75 2.75 0 004.75 18h10.5A2.75 2.75 0 0018 15.25v-2.5a.75.75 0 00-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5z" /></svg>
+                {t("download")}
               </a>
               <button onClick={() => {
                 const w = window.open("");
@@ -214,22 +246,15 @@ export default function StudentProfilePage() {
                   img.onload = () => { w.print(); w.close(); };
                   w.document.body.appendChild(img);
                 }
-              }} className="w-9 h-9 rounded-lg flex items-center justify-center"
-                style={{ background: POS.bgSurface, color: POS.primary }} aria-label={t("print")}>
+              }} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold"
+                style={{ background: POS.bgSurface, color: POS.primary }}>
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M5 2.75C5 1.784 5.784 1 6.75 1h6.5c.966 0 1.75.784 1.75 1.75v3.552c.377.046.752.097 1.126.153A2.212 2.212 0 0118 8.653v4.097A2.25 2.25 0 0115.75 15h-.75v.75c0 .966-.784 1.75-1.75 1.75h-6.5A1.75 1.75 0 015 15.75V15h-.75A2.25 2.25 0 012 12.75V8.653c0-1.082.775-2.034 1.874-2.198.374-.056.749-.107 1.126-.153V2.75zm8.5 3.397V2.75a.25.25 0 00-.25-.25h-6.5a.25.25 0 00-.25.25v3.397a49.98 49.98 0 017 0zM6.5 12.75v3a.25.25 0 00.25.25h6.5a.25.25 0 00.25-.25v-3H6.5z" clipRule="evenodd" /></svg>
+                {t("print")}
               </button>
             </div>
-          </div>
-        )}
-
-        <LineConnectionCard
-          student={student}
-          lineConnection={lineConnection}
-          unlinkedLineUsers={unlinkedLineUsers}
-          lineConfig={lineConfig}
-          isAdmin={isAdmin}
-        />
-      </div>
+          </Dialog.Panel>
+        </div>
+      </Dialog>
 
       {/* Enrolled Courses */}
       <section>

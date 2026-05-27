@@ -2,7 +2,6 @@ import { useMemo, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { Dialog } from "@headlessui/react";
 import {
   UsersIcon,
   AcademicCapIcon,
@@ -12,7 +11,9 @@ import {
   ExclamationTriangleIcon,
   ClipboardDocumentIcon,
   PrinterIcon,
+  XMarkIcon,
 } from "@heroicons/react/24/solid";
+import { Dialog } from "@headlessui/react";
 import { useAuth } from "./AuthContext";
 import { usePendingReviewCount } from "./hooks/useApplications";
 import { useExpectedToday, useStudents, useRenewalStudents } from "./hooks/useStudents";
@@ -29,7 +30,7 @@ export default function HomePage() {
   const { toast } = useToast();
   const isAdmin = user?.role === "owner" || user?.role === "admin" || user?.role === "superadmin";
 
-  const [expandedFeedCourse, setExpandedFeedCourse] = useState<number | null>(null);
+  const [feedExpanded, setFeedExpanded] = useState(false);
 
   const { data: school } = useQuery({
     queryKey: ["my_school", user?.school_id],
@@ -188,7 +189,14 @@ export default function HomePage() {
         {/* Daily Check-in Feed */}
         <div className="bg-white p-5 shadow-sm mb-6" style={{ border: `1px solid ${POS.borderLight}`, borderRadius: POS.radius3xl }}>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bouncy" style={{ color: POS.textPrimary }}>{t("dailyCheckinFeed")}</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-xl font-bouncy" style={{ color: POS.textPrimary }}>{t("dailyCheckinFeed")}</h2>
+              {checkedInIds.size > 0 && (
+                <span className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold" style={{ background: POS.success }}>
+                  {checkedInIds.size}
+                </span>
+              )}
+            </div>
             {feedByCourse.length > 0 && (
               <div className="flex gap-2">
                 <button onClick={handleCopyFeed} className="p-2 rounded-lg" aria-label={t("copyList")}
@@ -207,87 +215,107 @@ export default function HomePage() {
               <span className="text-4xl mb-2 block">👀</span>
               <p className="font-bold text-sm" style={{ color: POS.textMuted }}>{t("noCheckInsToday")}</p>
             </div>
-          ) : (
-            <div className="space-y-3">
-              {feedByCourse.map((group, i) => {
-                const colors = [POS.primary, POS.success, POS.info, POS.warning, "#E91E63"];
-                const color = colors[i % colors.length];
-                const MAX_VISIBLE = 5;
-                const visibleEntries = group.entries.slice(0, MAX_VISIBLE);
-                const hasMore = group.entries.length > MAX_VISIBLE;
-                return (
-                  <div key={i}>
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <div className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold" style={{ background: color }}>
-                        {group.courseName.charAt(0)}
-                      </div>
-                      <span className="font-bouncy text-base" style={{ color: POS.textPrimary }}>{group.courseName}</span>
-                      <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: `${color}15`, color }}>
-                        {group.entries.length}
-                      </span>
-                    </div>
-                    <div className="space-y-0.5 ml-9">
-                      {visibleEntries.map((entry, j) => (
-                        <div key={j} className="flex items-center gap-2 py-1 px-2 rounded-lg text-sm cursor-pointer"
-                          style={{ background: POS.bgSurface }}
-                          onClick={() => nav(`/students/${entry.studentId}`)}
-                          role="button">
-                          <span className="text-xs font-bold w-5 text-center" style={{ color: POS.textMuted }}>{j + 1}</span>
-                          <span className="font-bold" style={{ color: POS.textPrimary }}>{entry.studentName}</span>
+          ) : (() => {
+            const MAX_VISIBLE = 5;
+            const totalEntries = feedByCourse.reduce((s, g) => s + g.entries.length, 0);
+            const hasMore = totalEntries > MAX_VISIBLE;
+            const colors = [POS.primary, POS.success, POS.info, POS.warning, "#E91E63"];
+            let globalIdx = 0;
+
+            return (
+              <div className="space-y-3">
+                {feedByCourse.map((group, i) => {
+                  const color = colors[i % colors.length];
+                  const entries = (() => {
+                    const start = globalIdx;
+                    const available = Math.max(0, MAX_VISIBLE - start);
+                    globalIdx += group.entries.length;
+                    return group.entries.slice(0, available);
+                  })();
+                  if (entries.length === 0) return null;
+                  return (
+                    <div key={i}>
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <div className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold" style={{ background: color }}>
+                          {group.courseName.charAt(0)}
                         </div>
-                      ))}
-                      {hasMore && (
-                        <button onClick={() => setExpandedFeedCourse(i)}
-                          className="w-full text-center py-1.5 text-xs font-bold rounded-lg"
-                          style={{ color: POS.primary, background: `${POS.primary}08`, minHeight: "auto" }}>
-                          {t("seeMore")} ({group.entries.length - MAX_VISIBLE} {t("more")})
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-          )}
-        </div>
-
-        {/* Expanded feed modal */}
-        <Dialog open={expandedFeedCourse !== null} onClose={() => setExpandedFeedCourse(null)} className="relative z-50">
-          <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
-          <div className="fixed inset-0 flex items-center justify-center p-4">
-            <Dialog.Panel className="bg-white rounded-2xl p-5 max-w-md w-full mx-4 shadow-xl max-h-[80vh] overflow-y-auto">
-              {expandedFeedCourse !== null && feedByCourse[expandedFeedCourse] && (
-                <>
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-bouncy text-lg" style={{ color: POS.textPrimary }}>
-                      {feedByCourse[expandedFeedCourse].courseName}
-                    </h3>
-                    <span className="text-sm font-bold px-2 py-0.5 rounded-full" style={{ background: POS.bgSurface, color: POS.primary }}>
-                      {feedByCourse[expandedFeedCourse].entries.length}
-                    </span>
-                  </div>
-                  <div className="space-y-0.5">
-                    {feedByCourse[expandedFeedCourse].entries.map((entry, j) => (
-                      <div key={j} className="flex items-center gap-2 py-1.5 px-2 rounded-lg text-sm cursor-pointer"
-                        style={{ background: POS.bgSurface }}
-                        onClick={() => { setExpandedFeedCourse(null); nav(`/students/${entry.studentId}`); }}
-                        role="button">
-                        <span className="text-xs font-bold w-5 text-center" style={{ color: POS.textMuted }}>{j + 1}</span>
-                        <span className="font-bold" style={{ color: POS.textPrimary }}>{entry.studentName}</span>
+                        <span className="font-bouncy text-base" style={{ color: POS.textPrimary }}>{group.courseName}</span>
+                        <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: `${color}15`, color }}>
+                          {group.entries.length}
+                        </span>
                       </div>
-                    ))}
-                  </div>
-                  <button onClick={() => setExpandedFeedCourse(null)}
-                    className="w-full mt-4 py-3 rounded-xl border font-bold text-sm"
-                    style={{ borderColor: POS.border, color: POS.textSecondary }}>
-                    {t("close")}
+                      <div className="space-y-0.5 ml-9">
+                        {entries.map((entry, j) => (
+                          <div key={j} className="flex items-center gap-2 py-1 px-2 rounded-lg text-sm cursor-pointer"
+                            style={{ background: POS.bgSurface }}
+                            onClick={() => nav(`/students/${entry.studentId}`)}
+                            role="button">
+                            <span className="text-xs font-bold w-5 text-center" style={{ color: POS.textMuted }}>{j + 1}</span>
+                            <span className="font-bold" style={{ color: POS.textPrimary }}>{entry.studentName}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+                {hasMore && (
+                  <button onClick={() => setFeedExpanded(true)}
+                    className="w-full text-center py-2 text-xs font-bold rounded-lg"
+                    style={{ color: POS.primary, background: `${POS.primary}08`, minHeight: "auto" }}>
+                    {t("seeMore")} ({totalEntries - MAX_VISIBLE} {t("more")})
                   </button>
-                </>
-              )}
-            </Dialog.Panel>
-          </div>
-        </Dialog>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* Full Check-in Feed Modal */}
+          <Dialog open={feedExpanded} onClose={() => setFeedExpanded(false)} className="relative z-50">
+            <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
+            <div className="fixed inset-0 flex items-center justify-center p-4">
+              <Dialog.Panel className="bg-white rounded-2xl w-full max-w-md max-h-[80vh] overflow-y-auto shadow-2xl">
+                <div className="sticky top-0 bg-white px-5 py-4 border-b flex items-center justify-between rounded-t-2xl z-10" style={{ borderColor: POS.borderLight }}>
+                  <h3 className="text-lg font-bouncy" style={{ color: POS.primary }}>{t("dailyCheckinFeed")}</h3>
+                  <button onClick={() => setFeedExpanded(false)}
+                    className="w-8 h-8 rounded-full flex items-center justify-center"
+                    style={{ background: POS.bgSurface, minHeight: "auto" }}>
+                    <XMarkIcon className="w-4 h-4" style={{ color: POS.textMuted }} />
+                  </button>
+                </div>
+                <div className="p-5 space-y-4">
+                  {feedByCourse.map((group, i) => {
+                    const colors = [POS.primary, POS.success, POS.info, POS.warning, "#E91E63"];
+                    const color = colors[i % colors.length];
+                    return (
+                      <div key={i}>
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold" style={{ background: color }}>
+                            {group.courseName.charAt(0)}
+                          </div>
+                          <span className="font-bouncy text-base" style={{ color: POS.textPrimary }}>{group.courseName}</span>
+                          <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: `${color}15`, color }}>
+                            {group.entries.length}
+                          </span>
+                        </div>
+                        <div className="space-y-0.5 ml-9">
+                          {group.entries.map((entry, j) => (
+                            <div key={j} className="flex items-center gap-2 py-1 px-2 rounded-lg text-sm cursor-pointer"
+                              style={{ background: POS.bgSurface }}
+                              onClick={() => { setFeedExpanded(false); nav(`/students/${entry.studentId}`); }}
+                              role="button">
+                              <span className="text-xs font-bold w-5 text-center" style={{ color: POS.textMuted }}>{j + 1}</span>
+                              <span className="font-bold" style={{ color: POS.textPrimary }}>{entry.studentName}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </Dialog.Panel>
+            </div>
+          </Dialog>
+        </div>
 
         {/* Needs Renewal + Approaching Renewal */}
         {(overlimitStudents.length > 0 || approachingStudents.length > 0) && (
